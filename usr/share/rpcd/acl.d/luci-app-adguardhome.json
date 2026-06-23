@@ -1,0 +1,31 @@
+{
+	"luci-app-adguardhome": {
+		"description": "Grant access to AdGuardHome service control, logs and config",
+		"read": {
+			"file": {
+				"/var/log/AdGuardHome.log": [ "read" ],
+				"/etc/AdGuardHome.yaml": [ "read" ],
+				"/etc/config/adguardhome": [ "read" ],
+				"/var/run/AdGuardHome.pid": [ "read" ],
+				"/usr/lib/AdGuardHome/AdGuardHome": [ "read", "exec" ]
+			},
+			"ubus": {
+				"file": [ "read", "list", "exec", "stat" ],
+				"uci": [ "get", "changes" ]
+			},
+			"uci": [ "adguardhome" ]
+		},
+		"write": {
+			"file": {
+				"/etc/AdGuardHome.yaml": [ "write" ]
+			},
+			"ubus": {
+				"file": [ "write", "exec", "remove" ],
+				"uci": [ "set", "commit", "add", "delete", "rename", "order" ],
+				"rc": [ "init" ],
+				"service": [ "start", "stop", "restart" ]
+			},
+			"uci": [ "adguardhome" ]
+		}
+	}
+}

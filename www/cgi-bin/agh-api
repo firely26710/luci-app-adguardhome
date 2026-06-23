@@ -1,0 +1,156 @@
+#!/bin/sh
+# AdGuardHome API CGI backend
+
+echo "Content-Type: application/json; charset=utf-8"
+echo ""
+
+AGH_INIT="/etc/init.d/AdGuardHome"
+AGH_BIN="/usr/lib/AdGuardHome/AdGuardHome"
+AGH_YAML="/etc/AdGuardHome/AdGuardHome.yaml"
+AGH_PID="/var/run/AdGuardHome.pid"
+
+ACTION=""
+if [ -n "$QUERY_STRING" ]; then
+	ACTION=$(echo "$QUERY_STRING" | sed 's/.*action=\([^&]*\).*/\1/')
+fi
+if [ -z "$ACTION" ] && [ "$REQUEST_METHOD" = "POST" ]; then
+	read -r POST_DATA
+	ACTION=$(echo "$POST_DATA" | sed 's/.*action=\([^&]*\).*/\1/')
+fi
+
+is_running() {
+	[ -f "$AGH_PID" ] && return 0 || return 1
+}
+
+get_pid() {
+	cat /var/run/AdGuardHome.pid 2>/dev/null
+}
+
+json_escape() {
+	tr -d '\r' | sed 's/\\/\\\\/g;s/"/\\"/g' | awk 1 ORS='\\n'
+}
+
+case "$ACTION" in
+	status)
+		RUNNING=0; PID=""
+		if is_running; then RUNNING=1; PID=$(get_pid); fi
+		WEB=$(/sbin/uci -q get adguardhome.main.web_port 2>/dev/null || echo "3000")
+		DNS=$(/sbin/uci -q get adguardhome.main.adh_port 2>/dev/null || echo "5353")
+		BIN=$(/sbin/uci -q get adguardhome.main.binary_path 2>/dev/null || echo "$AGH_BIN")
+		VER=$($BIN --version 2>&1 | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+		echo "{\"running\":$RUNNING,\"pid\":\"$PID\",\"web_port\":\"$WEB\",\"adh_port\":\"$DNS\",\"version\":\"$VER\"}"
+		;;
+	start)
+		$AGH_INIT start >/dev/null 2>&1
+		echo '{"success":true}'
+		;;
+	stop)
+		$AGH_INIT stop >/dev/null 2>&1
+		echo '{"success":true}'
+		;;
+	restart)
+		$AGH_INIT restart >/dev/null 2>&1
+		echo '{"success":true}'
+		;;
+	get_log)
+		LINES=$(echo "$QUERY_STRING" | sed 's/.*lines=\([^&]*\).*/\1/')
+		[ -z "$LINES" ] && LINES=15
+		OFFSET=$(echo "$QUERY_STRING" | sed 's/.*offset=\([^&]*\).*/\1/')
+		[ -z "$OFFSET" ] && OFFSET=0
+		if [ "$OFFSET" -gt 0 ]; then
+			LOG=$(logread | grep -i AdGuardHome | tail -n +"$OFFSET" | head -n "$LINES" 2>/dev/null | json_escape)
+		else
+			LOG=$(logread | grep -i AdGuardHome | tail -n "$LINES" 2>/dev/null | json_escape)
+		fi
+		echo "{\"log\":\"$LOG\"}"
+		;;
+	get_yaml)
+		if [ -f "$AGH_YAML" ]; then
+			YAML=$(cat "$AGH_YAML" 2>/dev/null | json_escape)
+		else
+			YAML=""
+		fi
+		echo "{\"yaml\":\"$YAML\"}"
+		;;
+	save_yaml)
+		if [ "$REQUEST_METHOD" = "POST" ]; then
+			read -r POST_DATA
+			YAML_DATA=$(echo "$POST_DATA" | sed 's/.*yaml=\(.*\)/\1/')
+			printf '%b' "$YAML_DATA" > "$AGH_YAML" 2>/dev/null
+			$AGH_INIT restart >/dev/null 2>&1
+			echo '{"success":true}'
+		else
+			echo '{"success":false}'
+		fi
+		;;
+	get_config)
+		echo "{"
+		echo "  \"enabled\":\"$(/sbin/uci -q get adguardhome.main.enabled || echo 0)\","
+		echo "  \"dns_mode\":\"$(/sbin/uci -q get adguardhome.main.dns_mode || echo none)\","
+		echo "  \"web_port\":\"$(/sbin/uci -q get adguardhome.main.web_port || echo 3000)\","
+		echo "  \"adh_port\":\"$(/sbin/uci -q get adguardhome.main.adh_port || echo 5353)\","
+		echo "  \"dhcp_port\":\"$(/sbin/uci -q get adguardhome.main.dhcp_port || echo 53)\","
+		echo "  \"binary_path\":\"$(/sbin/uci -q get adguardhome.main.binary_path || echo /usr/lib/AdGuardHome/AdGuardHome)\","
+		echo "  \"config_path\":\"$(/sbin/uci -q get adguardhome.main.config_path || echo /etc/AdGuardHome/AdGuardHome.yaml)\","
+		echo "  \"work_dir\":\"$(/sbin/uci -q get adguardhome.main.work_dir || echo /etc/AdGuardHome)\","
+		echo "  \"log_file\":\"$(/sbin/uci -q get adguardhome.main.log_file || echo /var/log/AdGuardHome.log)\","
+		echo "  \"dl_mirror_prefix\":\"$(/sbin/uci -q get adguardhome.main.dl_mirror_prefix)\""
+		echo "}"
+		;;
+	save_config)
+		# Parse from QUERY_STRING directly (GET request)
+		OLDIFS="$IFS"
+		IFS='&'
+		for pair in $QUERY_STRING; do
+			key="${pair%%=*}"
+			val="${pair#*=}"
+			val=$(echo "$val" | sed 's|%2F|/|g;s|%3A|:|g;s|%20| |g;s|+| |g')
+			case "$key" in
+				enabled|dns_mode|web_port|adh_port|dhcp_port|binary_path|config_path|work_dir|log_file|dl_mirror_prefix)
+					/sbin/uci set "adguardhome.main.${key}=${val}" 2>/dev/null
+					;;
+			esac
+		done
+		IFS="$OLDIFS"
+		/sbin/uci commit adguardhome 2>/dev/null
+		$AGH_INIT restart >/dev/null 2>&1
+		echo '{"success":true}'
+		;;
+	check_update)
+		BIN=$(/sbin/uci -q get adguardhome.main.binary_path 2>/dev/null || echo "$AGH_BIN")
+		INSTALLED=$($BIN --version 2>&1 | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+		LATEST=$(wget -qO- --timeout=10 https://api.github.com/repos/AdguardTeam/AdGuardHome/releases/latest 2>/dev/null | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4)
+		if [ -z "$LATEST" ]; then
+			echo "{\"error\":\"无法获取最新版本\"}"
+		elif [ "$INSTALLED" = "$LATEST" ]; then
+			echo "{\"latest\":\"$LATEST\",\"current\":\"$INSTALLED\",\"is_latest\":true}"
+		else
+			echo "{\"latest\":\"$LATEST\",\"current\":\"$INSTALLED\",\"is_latest\":false}"
+		fi
+		;;
+	update)
+		VER=$(echo "$QUERY_STRING" | sed 's/.*version=\([^&]*\).*/\1/' | sed 's|%2F|/|g;s|%20| |g')
+		if [ -z "$VER" ]; then
+			echo '{"success":false,"message":"请指定版本号"}'
+		else
+			# Start download in background, write progress to temp file
+			PROG_FILE="/tmp/agh-update-progress"
+			echo "0" > "$PROG_FILE"
+			(/usr/bin/agh-update "$VER" > /tmp/agh-update.log 2>&1; echo "100" > "$PROG_FILE") &
+			echo '{"success":true,"message":"开始下载"}'
+		fi
+		;;
+	update_progress)
+		PROG_FILE="/tmp/agh-update-progress"
+		if [ -f "$PROG_FILE" ]; then
+			PROG=$(cat "$PROG_FILE")
+			LOG=$(tail -50 /tmp/agh-update.log 2>/dev/null | json_escape)
+			echo "{\"progress\":\"$PROG\",\"log\":\"$LOG\"}"
+		else
+			echo '{"progress":"0","log":""}'
+		fi
+		;;
+	*)
+		echo '{"error":"unknown"}'
+		;;
+esac

@@ -1,0 +1,309 @@
+#!/bin/sh /etc/rc.common
+# AdGuardHome init script for OpenWrt 25.12
+# Uses procd for process management + fw4 nftables includes
+#
+# Three DNS modes:
+#   dnsmasq-upstream: set dnsmasq to use AdGuardHome as upstream (127.0.0.1#PORT)
+#   redirect:        nftables redirect port 53 -> AdGuardHome (WAN excluded)
+#   exchange:        AdGuardHome takes port 53, dnsmasq moves to alternate port
+
+USE_PROCD=1
+START=95
+STOP=10
+
+PROG_DEFAULT="/usr/lib/AdGuardHome/AdGuardHome"
+CONF="/etc/config/adguardhome"
+WORK_DIR_DEFAULT="/etc/AdGuardHome"
+LOG_FILE_DEFAULT="/var/log/AdGuardHome.log"
+CONFIG_PATH_DEFAULT="/etc/AdGuardHome/AdGuardHome.yaml"
+
+# fw4 auto-include paths
+NF_CHAIN_DEF="/usr/share/nftables.d/table-post/15-adguardhome.nft"
+NF_DSTNAT_JUMP="/usr/share/nftables.d/chain-post/dstnat/15-adguardhome.nft"
+
+adh_enabled() {
+	config_get enabled main enabled 0
+	[ "$enabled" = "1" ] && return 0 || return 1
+}
+
+adh_port() {
+	local port
+	config_get port main adh_port 5353
+	echo "$port"
+}
+
+adh_web_port() {
+	local port
+	config_get port main web_port 3000
+	echo "$port"
+}
+
+adh_dns_mode() {
+	local mode
+	config_get mode main dns_mode "none"
+	echo "$mode"
+}
+
+adh_binary_path() {
+	local path
+	config_get path main binary_path "$PROG_DEFAULT"
+	echo "$path"
+}
+
+adh_config_path() {
+	local path
+	config_get path main config_path "$CONFIG_PATH_DEFAULT"
+	echo "$path"
+}
+
+adh_work_dir() {
+	local dir
+	config_get dir main work_dir "$WORK_DIR_DEFAULT"
+	echo "$dir"
+}
+
+adh_log_file() {
+	local file
+	config_get file main log_file "$LOG_FILE_DEFAULT"
+	echo "$file"
+}
+
+# Generate fw4 nftables include files for DNS hijacking
+generate_nft_rules() {
+	local mode="$1"
+	local adh_port="$2"
+
+	# Ensure directories exist
+	mkdir -p /usr/share/nftables.d/table-post/
+	mkdir -p /usr/share/nftables.d/chain-post/dstnat/
+
+	# Clean up old files
+	rm -f "$NF_CHAIN_DEF" "$NF_DSTNAT_JUMP"
+
+	if [ "$mode" = "none" ]; then
+		return 0
+	fi
+
+	# 1. Chain definition (named chain without hook - inherits context from caller)
+	cat > "$NF_CHAIN_DEF" << EOF
+# AdGuardHome DNS hijack chain (auto-generated)
+# Mode: $mode | AdH port: $adh_port
+chain adguardhome_dns {
+	# Allow AdGuardHome's own DNS traffic to prevent loops
+	meta l4proto { tcp, udp } th dport $adh_port accept comment "Allow AdGuardHome traffic"
+EOF
+
+	if [ "$mode" = "redirect" ]; then
+		# Redirect mode: only hijack LAN DNS queries, exclude WAN
+		cat >> "$NF_CHAIN_DEF" << EOF
+	# Redirect LAN DNS queries to AdGuardHome
+	# WAN exclusion: iifname matches LAN bridge only
+	iifname "br-lan" meta l4proto { tcp, udp } th dport 53 redirect to :$adh_port comment "DNS redirect to AdGuardHome"
+EOF
+	elif [ "$mode" = "replace" ]; then
+		# Replace mode: hijack ALL DNS queries (LAN + WAN)
+		cat >> "$NF_CHAIN_DEF" << EOF
+	# Replace ALL DNS queries with AdGuardHome
+	meta l4proto { tcp, udp } th dport 53 redirect to :$adh_port comment "DNS replace to AdGuardHome"
+EOF
+	fi
+
+	cat >> "$NF_CHAIN_DEF" << EOF
+}
+EOF
+
+	# 2. Jump rule from dstnat (prerouting NAT hook - supports redirect)
+	cat > "$NF_DSTNAT_JUMP" << EOF
+# AdGuardHome DNS hijack jump from dstnat (prerouting NAT)
+jump adguardhome_dns comment "AdGuardHome DNS redirect";
+EOF
+}
+
+remove_nft_rules() {
+	rm -f "$NF_CHAIN_DEF" "$NF_DSTNAT_JUMP"
+	/etc/init.d/firewall reload 2>/dev/null
+}
+
+# Mode 1: Set dnsmasq to use AdGuardHome as upstream DNS
+set_forward_dnsmasq() {
+	local port="$1"
+	local addr="127.0.0.1#$port"
+	local old_server=$(uci get dhcp.@dnsmasq[0].server 2>/dev/null)
+	echo "$old_server" | grep -q "^$addr" && return
+	uci delete dhcp.@dnsmasq[0].server 2>/dev/null
+	uci add_list dhcp.@dnsmasq[0].server="$addr"
+	for s in $old_server; do
+		[ "$s" = "$addr" ] && continue
+		uci add_list dhcp.@dnsmasq[0].server="$s"
+	done
+	uci delete dhcp.@dnsmasq[0].resolvfile 2>/dev/null
+	uci set dhcp.@dnsmasq[0].noresolv=1
+	uci commit dhcp
+	/etc/init.d/dnsmasq restart
+}
+
+stop_forward_dnsmasq() {
+	local port="$1"
+	local addr="127.0.0.1#$port"
+	echo "$(uci get dhcp.@dnsmasq[0].server 2>/dev/null)" | grep -q "^$addr" || return
+	uci del_list dhcp.@dnsmasq[0].server="$addr" 2>/dev/null
+	local rcauto="/tmp/resolv.conf.auto"
+	[ -e "/tmp/resolv.conf.d/resolv.conf.auto" ] && rcauto="/tmp/resolv.conf.d/resolv.conf.auto"
+	[ -z "$(uci get dhcp.@dnsmasq[0].server 2>/dev/null)" ] && {
+		uci set dhcp.@dnsmasq[0].resolvfile="$rcauto" 2>/dev/null
+		uci delete dhcp.@dnsmasq[0].noresolv 2>/dev/null
+	}
+	uci commit dhcp
+	/etc/init.d/dnsmasq restart
+}
+
+# Mode 2: nftables redirect (handled by generate_nft_rules/remove_nft_rules)
+
+# Mode 3: Exchange ports - AdGuardHome takes 53, dnsmasq uses adh_port
+use_port53() {
+	local adh_port="$1"
+	local config_path=$(adh_config_path)
+	local dnsmasq_port=$(uci get dhcp.@dnsmasq[0].port 2>/dev/null || echo "53")
+	[ "$dnsmasq_port" != "53" ] && return 0
+	uci set dhcp.@dnsmasq[0].port="$adh_port"
+	uci commit dhcp
+	/etc/init.d/dnsmasq restart
+	# Update AdGuardHome YAML to take port 53
+	if [ -f "$config_path" ]; then
+		sed -i "s/^\([[:space:]]*port:[[:space:]]*\)[0-9]*/\153/" "$config_path"
+	fi
+}
+
+rm_port53() {
+	local adh_port="$1"
+	local config_path=$(adh_config_path)
+	local dnsmasq_port=$(uci get dhcp.@dnsmasq[0].port 2>/dev/null || echo "53")
+	[ "$dnsmasq_port" = "53" ] && return 0
+	uci set dhcp.@dnsmasq[0].port="53"
+	uci commit dhcp
+	/etc/init.d/dnsmasq restart
+	# Restore AdGuardHome YAML DNS port
+	if [ -f "$config_path" ]; then
+		sed -i "s/^\([[:space:]]*port:[[:space:]]*\)[0-9]*/\1$adh_port/" "$config_path"
+	fi
+}
+
+apply_dns_mode() {
+	local mode="$1"
+	local port="$2"
+	local action="$3"  # "start" or "stop"
+
+	# First: clean up ALL modes to avoid overlap
+	remove_nft_rules
+	stop_forward_dnsmasq "$port"
+	rm_port53 "$port"
+
+	# Then: apply the selected mode
+	if [ "$action" = "start" ]; then
+		case "$mode" in
+			dnsmasq-upstream)
+				set_forward_dnsmasq "$port"
+				;;
+			redirect)
+				generate_nft_rules "$mode" "$port"
+				/etc/init.d/firewall reload 2>/dev/null
+				;;
+			exchange)
+				use_port53 "$port"
+				;;
+		esac
+	fi
+}
+
+check_binary() {
+	local bin=$(adh_binary_path)
+	if [ ! -x "$bin" ]; then
+		logger -t AdGuardHome "Binary not found: $bin"
+		return 1
+	fi
+	return 0
+}
+
+start_service() {
+	check_binary || return 1
+
+	config_load adguardhome
+
+	if ! adh_enabled; then
+		logger -t AdGuardHome "Service disabled in config, not starting"
+		return 0
+	fi
+
+	local port=$(adh_port)
+	local web_port=$(adh_web_port)
+	local mode=$(adh_dns_mode)
+	local bin=$(adh_binary_path)
+	local work_dir=$(adh_work_dir)
+
+	logger -t AdGuardHome "Starting AdGuardHome (web:$web_port dns:$port mode:$mode)"
+
+	mkdir -p "$work_dir"
+
+	# Apply DNS mode (fw4 nftables / dnsmasq upstream / port exchange)
+	apply_dns_mode "$mode" "$port" "start"
+
+	procd_open_instance
+	procd_set_param command "$bin" \
+		--no-check-update \
+		--work-dir "$work_dir" \
+		--web-addr "0.0.0.0:$web_port" \
+		--pidfile "/var/run/AdGuardHome.pid"
+
+	procd_set_param respawn 3600 5 10
+	procd_set_param file "$CONF"
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param term_timeout 10
+	procd_close_instance
+
+	logger -t AdGuardHome "Service started"
+}
+
+stop_service() {
+	logger -t AdGuardHome "Stopping AdGuardHome..."
+
+	config_load adguardhome
+	local mode=$(adh_dns_mode 2>/dev/null)
+	local port=$(adh_port 2>/dev/null)
+	[ "$mode" != "none" ] && apply_dns_mode "$mode" "$port" "stop"
+
+	rm -f /var/run/AdGuardHome.pid
+
+	logger -t AdGuardHome "Service stopped"
+}
+
+reload_service() {
+	logger -t AdGuardHome "Reloading AdGuardHome..."
+
+	config_load adguardhome
+	local mode=$(adh_dns_mode)
+	local port=$(adh_port)
+	local web_port=$(adh_web_port)
+	local bin=$(adh_binary_path)
+	local work_dir=$(adh_work_dir)
+
+	apply_dns_mode "$mode" "$port" "start"
+
+	procd_open_instance
+	procd_set_param command "$bin" \
+		--no-check-update \
+		--work-dir "$work_dir" \
+		--web-addr "0.0.0.0:$web_port" \
+		--pidfile "/var/run/AdGuardHome.pid"
+	procd_close_instance
+
+	logger -t AdGuardHome "Service reloaded"
+}
+
+service_triggers() {
+	procd_add_reload_trigger "adguardhome"
+}
+
+boot() {
+	start "$@"
+}

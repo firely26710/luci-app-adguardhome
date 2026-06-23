@@ -1,0 +1,190 @@
+#!/bin/sh
+# AdGuardHome update script with China mirror acceleration
+# Usage: /usr/bin/agh-update [version]
+# Example: /usr/bin/agh-update 0.107.62
+
+set -e
+
+VERSION="${1:-}"
+
+if [ -z "$VERSION" ]; then
+	echo "Error: Please specify a version"
+	echo "Usage: $0 <version>"
+	echo "Example: $0 0.107.62"
+	exit 1
+fi
+
+# Strip leading 'v' if present
+VERSION="${VERSION#v}"
+
+# Determine architecture
+ARCH="linux_amd64"
+MACHINE=$(uname -m)
+case "$MACHINE" in
+	x86_64|amd64)
+		ARCH="linux_amd64"
+		;;
+	aarch64|arm64)
+		ARCH="linux_arm64"
+		;;
+	armv5*)
+		ARCH="linux_armv5"
+		;;
+	armv6*)
+		ARCH="linux_armv6"
+		;;
+	armv7*)
+		ARCH="linux_armv7"
+		;;
+	mips)
+		ARCH="linux_mips_softfloat"
+		;;
+	mips64)
+		ARCH="linux_mips64_softfloat"
+		;;
+	*)
+		echo "Error: Unsupported architecture: $MACHINE"
+		exit 1
+		;;
+esac
+
+FILENAME="AdGuardHome_${ARCH}.tar.gz"
+PACKAGE_NAME="AdGuardHome_${ARCH}"
+
+# Read mirror prefix from UCI config
+MIRROR=""
+if [ -f /etc/config/adguardhome ] && command -v uci >/dev/null 2>&1; then
+	MIRROR=$(uci -q get adguardhome.main.dl_mirror_prefix 2>/dev/null || echo "")
+fi
+
+# Build download URL
+if [ -n "$MIRROR" ]; then
+	# Remove trailing slash from mirror
+	MIRROR="${MIRROR%/}"
+	URL="${MIRROR}/AdguardTeam/AdGuardHome/releases/download/v${VERSION}/${FILENAME}"
+	echo "Using mirror: $MIRROR"
+else
+	URL="https://github.com/AdguardTeam/AdGuardHome/releases/download/v${VERSION}/${FILENAME}"
+	echo "Using direct download (no mirror configured)"
+fi
+
+echo "Downloading AdGuardHome v${VERSION} for ${ARCH}..."
+echo "URL: $URL"
+
+# Progress file for web UI polling
+PROG_FILE="/tmp/agh-update-progress"
+echo "5" > "$PROG_FILE"
+
+# Download: prefer curl, fallback to wget
+TEMP_DIR="/tmp/agh-update-$$"
+mkdir -p "$TEMP_DIR"
+
+download_ok=0
+
+if command -v curl >/dev/null 2>&1; then
+	echo "Using curl to download..."
+	echo "10" > "$PROG_FILE"
+	if curl -L --connect-timeout 30 --max-time 300 -o "${TEMP_DIR}/${FILENAME}" "$URL" 2>&1; then
+		download_ok=1
+		echo "60" > "$PROG_FILE"
+	else
+		echo "curl download failed, trying wget..."
+	fi
+fi
+
+if [ "$download_ok" = "0" ]; then
+	if command -v wget >/dev/null 2>&1; then
+		echo "Using wget to download..."
+		if wget --timeout=120 -q --show-progress "$URL" -O "${TEMP_DIR}/${FILENAME}"; then
+			download_ok=1
+		else
+			echo "Error: Download failed with both curl and wget"
+			rm -rf "$TEMP_DIR"
+			exit 1
+		fi
+	else
+		echo "Error: Neither curl nor wget is available"
+		rm -rf "$TEMP_DIR"
+		exit 1
+	fi
+fi
+
+echo "Download complete. Extracting..."
+echo "80" > "$PROG_FILE" 2>/dev/null
+
+# Extract
+cd "$TEMP_DIR"
+if ! tar xzf "$FILENAME"; then
+	echo "Error: Extraction failed"
+	rm -rf "$TEMP_DIR"
+	exit 1
+fi
+
+echo "90" > "$PROG_FILE" 2>/dev/null
+
+# Find extracted binary
+BINARY_PATH=""
+for dir in "$TEMP_DIR" "$TEMP_DIR/AdGuardHome" "${TEMP_DIR}/${PACKAGE_NAME}"; do
+	if [ -f "${dir}/AdGuardHome" ]; then
+		BINARY_PATH="${dir}/AdGuardHome"
+		break
+	fi
+done
+
+if [ -z "$BINARY_PATH" ]; then
+	echo "Error: Could not find extracted binary"
+	echo "Contents of $TEMP_DIR:"
+	find "$TEMP_DIR" -type f | head -10
+	rm -rf "$TEMP_DIR"
+	exit 1
+fi
+
+# Verify binary
+echo "Verifying binary..."
+if ! "$BINARY_PATH" --version >/dev/null 2>&1; then
+	echo "Error: Downloaded binary is not executable or corrupted"
+	rm -rf "$TEMP_DIR"
+	exit 1
+fi
+
+NEW_VERSION=$("$BINARY_PATH" --version 2>&1 | head -1)
+echo "Binary version: $NEW_VERSION"
+
+# Stop service if running
+if /etc/init.d/AdGuardHome status 2>/dev/null | grep -q "running"; then
+	echo "Stopping AdGuardHome service..."
+	/etc/init.d/AdGuardHome stop
+fi
+
+# Backup existing binary
+if [ -f /usr/lib/AdGuardHome/AdGuardHome ]; then
+	cp /usr/lib/AdGuardHome/AdGuardHome "/usr/lib/AdGuardHome/AdGuardHome.bak-$(date +%Y%m%d%H%M%S)"
+	echo "Backup created"
+fi
+
+# Replace binary (read target path from UCI)
+TARGET=$(uci -q get adguardhome.main.binary_path 2>/dev/null || echo "/usr/lib/AdGuardHome/AdGuardHome")
+[ -d "$(dirname "$TARGET")" ] || mkdir -p "$(dirname "$TARGET")"
+cp "$BINARY_PATH" "$TARGET"
+chmod +x "$TARGET"
+
+echo "95" > "$PROG_FILE" 2>/dev/null
+echo "Binary updated successfully"
+
+# Start service if it was previously enabled
+if [ -f /etc/config/adguardhome ]; then
+	if uci -q get adguardhome.main.enabled | grep -q "^1$"; then
+		echo "Re-starting AdGuardHome service..."
+		/etc/init.d/AdGuardHome start
+	fi
+fi
+
+# Cleanup
+rm -rf "$TEMP_DIR"
+
+echo "100" > "$PROG_FILE" 2>/dev/null
+echo "=== Update complete ==="
+echo "New version: $NEW_VERSION"
+echo "Installed at: $TARGET"
+echo ""
+echo "Tip: Run '/etc/init.d/AdGuardHome start' if the service is not running."

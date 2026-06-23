@@ -1,0 +1,16 @@
+{
+	"admin/services/adguardhome": {
+		"title": "AdGuardHome",
+		"order": 60,
+		"action": {
+			"type": "view",
+			"path": "adguardhome/main"
+		},
+		"depends": {
+			"acl": [ "luci-app-adguardhome" ],
+			"fs": {
+				"/etc/config/adguardhome": "file"
+			}
+		}
+	}
+}

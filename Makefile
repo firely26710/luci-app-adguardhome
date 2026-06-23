@@ -13,12 +13,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-adguardhome
-PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_VERSION:=3.0
+PKG_RELEASE:=20260624
 
 PKG_MAINTAINER:=ADH Team
-PKG_LICENSE:=MIT
-PKG_LICENSE_FILES:=
+PKG_LICENSE:=Apache-2.0
+PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/apk.mk
@@ -28,7 +28,7 @@ define Package/luci-app-adguardhome
 	CATEGORY:=LuCI
 	SUBMENU:=3. Applications
 	TITLE:=LuCI Support for AdGuardHome
-	URL:=https://github.com/AdguardTeam/AdGuardHome
+	URL:=https://github.com/firely26710/luci-app-adguardhome.git
 	DEPENDS:=+luci-base +nftables +curl +wget +rpcd
 	PKGARCH:=all
 endef

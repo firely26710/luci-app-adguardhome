@@ -14,14 +14,13 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-adguardhome
 PKG_VERSION:=3.0
-PKG_RELEASE:=20260624
+PKG_RELEASE:=20260629
 
 PKG_MAINTAINER:=ADH Team
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
-include $(INCLUDE_DIR)/apk.mk
 
 define Package/luci-app-adguardhome
 	SECTION:=luci
@@ -120,6 +119,10 @@ fi
 
 rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null || true
 
+# Enable auto-start on boot (creates /etc/rc.d/S95AdGuardHome symlink)
+/etc/init.d/AdGuardHome enable 2>/dev/null || true
+echo "Auto-start on boot enabled"
+
 echo ""
 echo "AdGuardHome LuCI app installed!"
 echo "================================="
@@ -148,8 +151,6 @@ fi
 # Clean up fw4 nftables include files
 rm -f /usr/share/nftables.d/table-post/15-adguardhome.nft
 rm -f /usr/share/nftables.d/chain-post/dstnat/15-adguardhome.nft
-rm -f /usr/share/nftables.d/chain-post/input_lan/15-adguardhome.nft
-rm -f /usr/share/nftables.d/chain-post/input_wan/15-adguardhome.nft
 /etc/init.d/firewall reload 2>/dev/null || true
 
 exit 0

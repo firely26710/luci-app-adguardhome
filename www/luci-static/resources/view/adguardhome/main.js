@@ -44,8 +44,8 @@ return view.extend({
 		var v = this;
 		api('get_config', null, function (cfg) {
 			if (cfg) {
-				// Normalize: map old mode names to new ones, default to dnsmasq-upstream
-				if (!cfg.dns_mode || cfg.dns_mode === 'none') cfg.dns_mode = 'dnsmasq-upstream';
+				// Normalize: map old mode names to new ones, default to exchange
+				if (!cfg.dns_mode || cfg.dns_mode === 'none') cfg.dns_mode = 'exchange';
 				else if (cfg.dns_mode === 'replace') cfg.dns_mode = 'exchange';
 				v._cfg = cfg;
 			}
@@ -82,6 +82,9 @@ return view.extend({
 		document.querySelectorAll('.cbi-tabmenu .cbi-tab').forEach(function (li) {
 			li.classList.toggle('active', li.getAttribute('data-tab') === name);
 		});
+		// Clean up timers when leaving their tabs
+		if (name !== "status" && this._timer) { clearInterval(this._timer); this._timer = null; }
+		if (name !== "logs" && this._logTimer) { clearInterval(this._logTimer); this._logTimer = null; }
 	},
 
 	// =================== 运行状态 ===================
@@ -191,7 +194,7 @@ return view.extend({
 	_configTab: function () {
 		var v = this, cfg = this._cfg || {};
 		// Safety: normalize dns_mode for display even if API failed
-		if (!cfg.dns_mode || cfg.dns_mode === 'none') cfg.dns_mode = 'dnsmasq-upstream';
+		if (!cfg.dns_mode || cfg.dns_mode === 'none') cfg.dns_mode = 'exchange';
 		if (cfg.dns_mode === 'replace') cfg.dns_mode = 'exchange';
 
 		var s = E('div', {}, [
@@ -233,7 +236,7 @@ return view.extend({
 		var v = this;
 		var g = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
 		var d = {
-			enabled: g('cfg-enabled') || '0', dns_mode: g('cfg-dns-mode') || 'dnsmasq-upstream',
+			enabled: g('cfg-enabled') || '0', dns_mode: g('cfg-dns-mode') || 'exchange',
 			web_port: g('cfg-web-port') || '3000',
 			binary_path: g('cfg-binary-path') || '', config_path: g('cfg-config-path') || '',
 			work_dir: g('cfg-work-dir') || '', log_file: g('cfg-log-file') || '',
@@ -269,7 +272,10 @@ return view.extend({
 			logTa.value = '';
 
 			api('update', { version: r.latest }, function () {
+				var retries = 0;
 				var timer = setInterval(function () {
+					retries++;
+					if (retries > 600) { clearInterval(timer); span.textContent = '更新超时，请重试'; btn.disabled = false; return; }
 					api('update_progress', null, function (p) {
 						if (!p) return;
 						var prog = parseInt(p.progress) || 0;

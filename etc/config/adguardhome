@@ -4,7 +4,7 @@ config adguardhome 'main'
 	option dns_mode 'exchange'
 	option web_port '3000'
 	option adh_port '5353'
-	option dhcp_port '53'
+
 	option binary_path '/usr/lib/AdGuardHome/AdGuardHome'
 	option config_path '/etc/AdGuardHome/AdGuardHome.yaml'
 	option work_dir '/etc/AdGuardHome'

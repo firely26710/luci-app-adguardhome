@@ -15,10 +15,21 @@ jobs:
 
       - name: Download OpenWrt SDK
         run: |
-          SDK_URL="https://downloads.openwrt.org/releases/25.12.4/targets/x86/64/"
-          SDK_FILE=$(wget -qO- "$SDK_URL" | grep -oP 'openwrt-sdk-25\.12\.4-x86-64.*?\.tar\.xz' | head -1)
-          echo "SDK: $SDK_FILE"
-          wget -q --show-progress "${SDK_URL}${SDK_FILE}"
+          set -e
+          BASE="https://downloads.openwrt.org/releases/25.12.0/targets/x86/64"
+          echo "Fetching SDK list from $BASE"
+          SDK_FILE=$(wget -qO- "$BASE" | grep -oP 'openwrt-sdk-25\.12\.0-x86-64[^"]*\.tar\.xz' | head -1)
+          if [ -z "$SDK_FILE" ]; then
+            echo "Trying 25.12.4..."
+            BASE="https://downloads.openwrt.org/releases/25.12.4/targets/x86/64"
+            SDK_FILE=$(wget -qO- "$BASE" | grep -oP 'openwrt-sdk-25\.12\.4-x86-64[^"]*\.tar\.xz' | head -1)
+          fi
+          if [ -z "$SDK_FILE" ]; then
+            echo "ERROR: Could not find SDK for 25.12.0 or 25.12.4"
+            exit 1
+          fi
+          echo "Downloading $SDK_FILE"
+          wget -q --show-progress "${BASE}/${SDK_FILE}"
           tar xf "$SDK_FILE"
           mv openwrt-sdk-* sdk
 

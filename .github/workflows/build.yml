@@ -15,25 +15,18 @@ jobs:
 
       - name: Build in OpenWrt SDK
         run: |
-          docker run --rm \
+          docker run --rm --user root \
             -v "${{ github.workspace }}:/workspace" \
             ghcr.io/openwrt/sdk:x86-64-25.12.4 \
             bash -c "
               set -e
               mkdir -p /builder/package/luci-app-adguardhome
               cp -r /workspace/. /builder/package/luci-app-adguardhome/
-              echo '=== Package contents ==='
-              ls /builder/package/luci-app-adguardhome/Makefile
               cd /builder
               make defconfig
               make package/luci-app-adguardhome/compile -j\$(nproc) V=s
-              echo '=== Searching for apk ==='
-              find bin -name '*.apk' 2>/dev/null || echo 'No apk found in bin/'
-              ls -R bin/packages/ 2>/dev/null | head -30 || echo 'No bin/packages/'
-              find bin -name 'luci-app-adguardhome*.apk' -exec cp -v {} /workspace/ \;
+              cp -v bin/packages/x86_64/base/luci-app-adguardhome*.apk /workspace/
             "
-          echo "=== Workspace after build ==="
-          ls -la ${{ github.workspace }}/*.apk 2>/dev/null || echo "No apk in workspace"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

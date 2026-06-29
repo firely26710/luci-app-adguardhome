@@ -12,7 +12,7 @@ OpenWrt 25.12 AdGuardHome LuCI 插件。纯 JavaScript + Shell CGI，零 Lua。
 >
 > **如果你想自己改**：代码量很小，init 脚本 ~310 行，JS 前端 ~300 行，Shell CGI ~250 行。看懂一个文件就能改一个功能，不需要学 Lua。
 
-插件的下载更新部分基于 AdGuard Home 官方安装脚本编写（GitHub Releases 直链、CLI 参数、YAML 配置），进程管理（procd）、DNS 劫持（nftables）、配置存储（UCI）、Web 界面（LuCI JS）这些 OpenWrt 层为自定义集成。
+插件的下载更新部分参考了 AdGuard Home 官方安装方式（GitHub Releases 直链、CLI 参数、YAML 配置），但进程管理（procd）、DNS 劫持（nftables）、配置存储（UCI）、Web 界面（LuCI JS）这些 OpenWrt 层的集成完全是自定义的。
 
 ---
 
@@ -36,20 +36,21 @@ OpenWrt 25.12 AdGuardHome LuCI 插件。纯 JavaScript + Shell CGI，零 Lua。
 
 ## 安装
 
-从 [GitHub Releases](../../releases) 下载编译好的 `.apk` 包，传到路由器安装：
+OpenWrt 25.12.x 默认限制安装非官方 APK 包，需要先解锁（只需执行一次）：
 
-```sh
-scp luci-app-adguardhome_*.apk root@192.168.1.1:/tmp/
-ssh root@192.168.1.1
-apk add /tmp/luci-app-adguardhome_*.apk
+```bash
+wget -O toggle.sh https://cafe.cpolar.cn/wkdaily/cool/raw/branch/master/apk-untrusted-toggle.sh && sh toggle.sh
 ```
 
-APK 安装会自动处理权限和开机自启。如果手动安装，把文件 `scp` 到对应路径后执行：
+解锁后，通过 LuCI 界面安装：**系统 → 软件包 → 上传软件包**，选择 `.apk` 文件上传安装。或使用命令行：
 
-```sh
-chmod 755 /etc/init.d/AdGuardHome /usr/bin/agh-update /www/cgi-bin/agh-api
-/etc/init.d/AdGuardHome enable
+```bash
+apk add --allow-untrusted ./luci-app-adguardhome-*.apk
 ```
+
+> 参考视频：[OpenWrt 25.12.x APK 安装教程](https://www.bilibili.com/video/BV1aKJp6KEDG/)（作者：[悟空的日常](https://github.com/wukongdaily)，[luci-app-run](https://github.com/wukongdaily/luci-app-run)）
+
+> APK 安装会自动处理权限和开机自启；手动安装需要自己执行上面两条命令。
 
 装好插件后还需要下载 AdGuardHome 核心二进制才能运行——在 LuCI 的"运行状态"Tab 点击"检测并更新"即可。
 
@@ -92,7 +93,7 @@ config adguardhome 'main'
     option dns_mode 'exchange'      # DNS 模式（见上表）
     option web_port '3000'          # AGH 自带 Web 管理界面端口
     option adh_port '5353'          # AGH DNS 监听端口（exchange/redirect 模式用）
-
+    option dhcp_port '53'           # DHCP/DNS 标准端口（供参考，不直接使用）
     option binary_path '/usr/lib/AdGuardHome/AdGuardHome'   # 二进制路径
     option config_path '/etc/AdGuardHome/AdGuardHome.yaml'  # AGH YAML 配置
     option work_dir '/etc/AdGuardHome'                      # AGH 工作目录（数据存储）
@@ -107,7 +108,7 @@ config adguardhome 'main'
 | `web_port` | `3000` | 访问 `http://路由器IP:3000` 进入 AGH 自带管理界面 |
 | `adh_port` | `5353` | AdGuardHome DNS 监听端口，redirect 和 dnsmasq-upstream 模式下使用 |
 | `binary_path` | `/usr/lib/AdGuardHome/AdGuardHome` | 下载更新也会安装到这个路径 |
-| `dl_mirror_prefix` | `https://gh-proxy.com/https://github.com` | GitHub 下载镜像加速，国内用户已预配 |
+| `dl_mirror_prefix` | 空 | 国内用户建议填 `https://gh-proxy.com/https://github.com`，加速下载 |
 
 ---
 
@@ -246,7 +247,7 @@ rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/*
 ls -la /usr/lib/AdGuardHome/AdGuardHome
 ```
 
-如果不存在，在 LuCI 的"运行状态"Tab 点击"检测并更新"下载核心。
+如果不存在，参考上方"首次使用"下载核心。
 
 ### Q: redirect 模式下 DNS 不生效？
 
@@ -273,6 +274,6 @@ uci get dhcp.@dnsmasq[0].port
 2. 确认端口：`netstat -tlnp | grep AdGuard`
 3. 确认防火墙没有拦截 3000 端口
 
-### Q: 下载太慢或失败？
+### Q: 国内下载太慢？
 
-检查"参数配置"中的下载镜像前缀是否有效，默认已预配 `gh-proxy.com`，如果失效可以换成其他 GitHub 加速服务。
+在"参数配置"中把下载镜像前缀换成其他 GitHub 加速服务。

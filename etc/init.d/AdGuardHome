@@ -4,7 +4,7 @@
 #
 # Three DNS modes:
 #   dnsmasq-upstream: set dnsmasq to use AdGuardHome as upstream (127.0.0.1#PORT)
-#   redirect:        nftables redirect port 53 -> AdGuardHome (WAN excluded)
+#   redirect:        nftables DNAT port 53 -> AdGuardHome (WAN excluded, iifname br-lan)
 #   exchange:        AdGuardHome takes port 53, dnsmasq moves to alternate port
 
 USE_PROCD=1
@@ -40,7 +40,7 @@ adh_web_port() {
 
 adh_dns_mode() {
 	local mode
-	config_get mode main dns_mode "none"
+	config_get mode main dns_mode "exchange"
 	echo "$mode"
 }
 
@@ -96,15 +96,15 @@ EOF
 	if [ "$mode" = "redirect" ]; then
 		# Redirect mode: only hijack LAN DNS queries, exclude WAN
 		cat >> "$NF_CHAIN_DEF" << EOF
-	# Redirect LAN DNS queries to AdGuardHome
+	# Redirect LAN DNS queries to AdGuardHome via DNAT
 	# WAN exclusion: iifname matches LAN bridge only
-	iifname "br-lan" meta l4proto { tcp, udp } th dport 53 redirect to :$adh_port comment "DNS redirect to AdGuardHome"
+	iifname "br-lan" meta l4proto { tcp, udp } th dport 53 dnat ip to 127.0.0.1:$adh_port comment "DNS redirect to AdGuardHome"
 EOF
 	elif [ "$mode" = "replace" ]; then
 		# Replace mode: hijack ALL DNS queries (LAN + WAN)
 		cat >> "$NF_CHAIN_DEF" << EOF
-	# Replace ALL DNS queries with AdGuardHome
-	meta l4proto { tcp, udp } th dport 53 redirect to :$adh_port comment "DNS replace to AdGuardHome"
+	# Replace ALL DNS queries with AdGuardHome via DNAT
+	meta l4proto { tcp, udp } th dport 53 dnat ip to 127.0.0.1:$adh_port comment "DNS replace to AdGuardHome"
 EOF
 	fi
 
@@ -112,7 +112,7 @@ EOF
 }
 EOF
 
-	# 2. Jump rule from dstnat (prerouting NAT hook - supports redirect)
+	# 2. Jump rule from dstnat (prerouting NAT hook - DNAT to AdGuardHome)
 	cat > "$NF_DSTNAT_JUMP" << EOF
 # AdGuardHome DNS hijack jump from dstnat (prerouting NAT)
 jump adguardhome_dns comment "AdGuardHome DNS redirect";
@@ -157,7 +157,7 @@ stop_forward_dnsmasq() {
 	/etc/init.d/dnsmasq restart
 }
 
-# Mode 2: nftables redirect (handled by generate_nft_rules/remove_nft_rules)
+# Mode 2: nftables DNAT (handled by generate_nft_rules/remove_nft_rules)
 
 # Mode 3: Exchange ports - AdGuardHome takes 53, dnsmasq uses adh_port
 use_port53() {
@@ -170,7 +170,7 @@ use_port53() {
 	/etc/init.d/dnsmasq restart
 	# Update AdGuardHome YAML to take port 53
 	if [ -f "$config_path" ]; then
-		sed -i "s/^\([[:space:]]*port:[[:space:]]*\)[0-9]*/\153/" "$config_path"
+		sed -i "/^dns:/,/^[a-z]/{s/^\([[:space:]]*port:[[:space:]]*\)[0-9]*/\153/}" "$config_path"
 	fi
 }
 
@@ -184,7 +184,7 @@ rm_port53() {
 	/etc/init.d/dnsmasq restart
 	# Restore AdGuardHome YAML DNS port
 	if [ -f "$config_path" ]; then
-		sed -i "s/^\([[:space:]]*port:[[:space:]]*\)[0-9]*/\1$adh_port/" "$config_path"
+		sed -i "/^dns:/,/^[a-z]/{s/^\([[:space:]]*port:[[:space:]]*\)[0-9]*/\1$adh_port/}" "$config_path"
 	fi
 }
 

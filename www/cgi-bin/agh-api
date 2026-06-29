@@ -89,7 +89,6 @@ case "$ACTION" in
 		echo "  \"dns_mode\":\"$(/sbin/uci -q get adguardhome.main.dns_mode || echo none)\","
 		echo "  \"web_port\":\"$(/sbin/uci -q get adguardhome.main.web_port || echo 3000)\","
 		echo "  \"adh_port\":\"$(/sbin/uci -q get adguardhome.main.adh_port || echo 5353)\","
-		echo "  \"dhcp_port\":\"$(/sbin/uci -q get adguardhome.main.dhcp_port || echo 53)\","
 		echo "  \"binary_path\":\"$(/sbin/uci -q get adguardhome.main.binary_path || echo /usr/lib/AdGuardHome/AdGuardHome)\","
 		echo "  \"config_path\":\"$(/sbin/uci -q get adguardhome.main.config_path || echo /etc/AdGuardHome/AdGuardHome.yaml)\","
 		echo "  \"work_dir\":\"$(/sbin/uci -q get adguardhome.main.work_dir || echo /etc/AdGuardHome)\","
@@ -104,9 +103,9 @@ case "$ACTION" in
 		for pair in $QUERY_STRING; do
 			key="${pair%%=*}"
 			val="${pair#*=}"
-			val=$(echo "$val" | sed 's|%2F|/|g;s|%3A|:|g;s|%20| |g;s|+| |g')
+			val=$(echo "$val" | sed 's|%2F|/|g;s|%3A|:|g;s|%20| |g;s|%2E|.|g;s|%2D|-|g;s|%5F|_|g;s|+| |g')
 			case "$key" in
-				enabled|dns_mode|web_port|adh_port|dhcp_port|binary_path|config_path|work_dir|log_file|dl_mirror_prefix)
+				enabled|dns_mode|web_port|adh_port|binary_path|config_path|work_dir|log_file|dl_mirror_prefix)
 					/sbin/uci set "adguardhome.main.${key}=${val}" 2>/dev/null
 					;;
 			esac

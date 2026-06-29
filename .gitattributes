@@ -1,0 +1,7 @@
+# Force LF for shell scripts (OpenWrt can't handle CRLF)
+* text=auto
+*.sh text eol=lf
+Makefile text eol=lf
+etc/init.d/AdGuardHome text eol=lf
+www/cgi-bin/agh-api text eol=lf
+usr/bin/agh-update text eol=lf

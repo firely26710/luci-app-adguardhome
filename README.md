@@ -93,7 +93,6 @@ config adguardhome 'main'
     option dns_mode 'exchange'      # DNS 模式（见上表）
     option web_port '3000'          # AGH 自带 Web 管理界面端口
     option adh_port '5353'          # AGH DNS 监听端口（exchange/redirect 模式用）
-    option dhcp_port '53'           # DHCP/DNS 标准端口（供参考，不直接使用）
     option binary_path '/usr/lib/AdGuardHome/AdGuardHome'   # 二进制路径
     option config_path '/etc/AdGuardHome/AdGuardHome.yaml'  # AGH YAML 配置
     option work_dir '/etc/AdGuardHome'                      # AGH 工作目录（数据存储）
@@ -108,7 +107,7 @@ config adguardhome 'main'
 | `web_port` | `3000` | 访问 `http://路由器IP:3000` 进入 AGH 自带管理界面 |
 | `adh_port` | `5353` | AdGuardHome DNS 监听端口，redirect 和 dnsmasq-upstream 模式下使用 |
 | `binary_path` | `/usr/lib/AdGuardHome/AdGuardHome` | 下载更新也会安装到这个路径 |
-| `dl_mirror_prefix` | 空 | 国内用户建议填 `https://gh-proxy.com/https://github.com`，加速下载 |
+| `dl_mirror_prefix` | `https://gh-proxy.com/https://github.com` | GitHub 下载镜像，已预配，可换成其他加速服务 |
 
 ---
 
@@ -247,7 +246,7 @@ rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/*
 ls -la /usr/lib/AdGuardHome/AdGuardHome
 ```
 
-如果不存在，参考上方"首次使用"下载核心。
+如果不存在，在 LuCI 的"运行状态"Tab 点击"检测并更新"下载核心。
 
 ### Q: redirect 模式下 DNS 不生效？
 
@@ -274,6 +273,6 @@ uci get dhcp.@dnsmasq[0].port
 2. 确认端口：`netstat -tlnp | grep AdGuard`
 3. 确认防火墙没有拦截 3000 端口
 
-### Q: 国内下载太慢？
+### Q: 下载太慢或失败？
 
-在"参数配置"中把下载镜像前缀换成其他 GitHub 加速服务。
+已预配镜像，如果失效可在"参数配置"中换成其他 GitHub 加速服务。

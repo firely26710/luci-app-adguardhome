@@ -4,7 +4,7 @@ OpenWrt 25.12 AdGuardHome LuCI 插件。纯 JavaScript + Shell CGI，零 Lua。
 
 ## 新手必读
 
-这个插件是**用 Claude Code（AI 编程助手）[开源](https://github.com/anthropics/claude-code) 从零写出来的**，不是官方项目，也不是从旧版 OpenWrt 的 Lua 插件迁移的。
+这个插件是**用 Claude Code（AI 编程助手）[开源](https://github.com/anthropics/claude-code) 参考官方安装脚本写出来的**，不是官方项目，也不是从旧版 OpenWrt 的 Lua 插件迁移的。
 
 整个过程是一个人 + AI 配合完成的：说需求 → AI 写代码 → 测试验证 → 迭代修复，不懂 Lua、不懂 OpenWrt 插件开发，但靠着 AI 一步一步把功能堆出来了。每行代码都是需求驱动的，没有历史包袱，所以能做到零 Lua、纯 JS + Shell，结构比传统 LuCI 插件简单很多。
 

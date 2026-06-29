@@ -12,7 +12,7 @@ OpenWrt 25.12 AdGuardHome LuCI 插件。纯 JavaScript + Shell CGI，零 Lua。
 >
 > **如果你想自己改**：代码量很小，init 脚本 ~310 行，JS 前端 ~300 行，Shell CGI ~250 行。看懂一个文件就能改一个功能，不需要学 Lua。
 
-插件的下载更新部分参考了 AdGuard Home 官方安装方式（GitHub Releases 直链、CLI 参数、YAML 配置），但进程管理（procd）、DNS 劫持（nftables）、配置存储（UCI）、Web 界面（LuCI JS）这些 OpenWrt 层的集成完全是自定义的。
+插件的下载更新部分基于 AdGuard Home 官方安装脚本编写（GitHub Releases 直链、CLI 参数、YAML 配置），进程管理（procd）、DNS 劫持（nftables）、配置存储（UCI）、Web 界面（LuCI JS）这些 OpenWrt 层为自定义集成。
 
 ---
 

@@ -431,7 +431,7 @@ apk del luci-app-adguardhome
 我是新手。1.x 是用 [Claude Code](https://github.com/anthropics/claude-code) 参考
 [AdGuardHome 官方](https://github.com/AdguardTeam/AdguardHome) 安装脚本写出来的；
 **2.0.0 这一版（DNS 模式修复、三页签 UI 重做、i18n、签名打包与文档）由
-[DSH（DeepSeek Harness）](https://github.com/deepseek-ai) AI agent 完成**。整个过程都是
+DSH（DeepSeek Harness）AI agent 完成**。整个过程都是
 一个人 + AI：说需求 → 写代码 → 路由器实测 → 迭代修复。
 
 不是官方项目，也不是旧版 Lua 插件的移植。没有历史包袱，所以能做到零 Lua、纯 JS + Shell。

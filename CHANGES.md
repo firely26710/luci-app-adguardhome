@@ -275,6 +275,31 @@ missing   → Warning: not listed ...      rc=0
 | 重启 | exchange 模式重启后 AGH 53 / dnsmasq 5353，客户端解析正常 |
 | 开机初期 | 模式与端口保持；WAN 未就绪时 AGH 上游短暂报 `network is unreachable`，网络起来后自动恢复 |
 
+### 7.2 物理机三模式 + IPv6 实测（100.69.8.71）
+
+环境：OpenWrt 25.12.5 x86_64（Pentium N3700），LAN `192.168.31.1/24`，
+GUA `240e:335:7404:2bf0::/60`，ULA `fd4e:f536:28d5::/60`。用 veth + netns 模拟 LAN
+客户端（`192.168.31.250` / `240e:...::250` / `fd4e:...::250`），分别向 IPv4、GUA、ULA
+地址发起解析；每条模式再 `kill -STOP` 暂停 AGH 复测一次（不停服务、不触发 dnsmasq 还原）。
+
+| 模式 | dnsmasq | AGH 监听 | 客户端 v4 / GUA / ULA | 暂停 AGH 后 |
+|---|---|---|---|---|
+| exchange | 5353 | `:::53` | OK / OK / OK | v4、v6 均 FAIL（53 由 AGH 提供） |
+| redirect | 53 | `:::5353` | OK / OK / OK | v4、v6 均 FAIL（dnsmasq 在 53，但被重定向到 5353） |
+| dnsmasq-upstream | 53 | `:::5353` | OK / OK / OK | v4、v6 均 FAIL（noresolv，唯一上游是 5353） |
+
+IPv6 结论：
+
+- AGH 绑定 `:::53` / `:::5353`，双栈；GUA 与 ULA 查询都正常；
+- redirect 规则在 `inet` 表，对 IPv6 同样生效——暂停 AGH 后 dnsmasq 仍在 53，查询却失败，
+  证明 IPv6 查询也被重定向到了 5353；
+- dnsmasq 在 53 时同时监听 LAN 的 GUA、ULA、link-local 地址；
+- upstream 模式通过 IPv4 回环转发到 AGH，IPv6 客户端可用，但 AGH 只能看到 `127.0.0.1`，
+  真实 IPv6 客户端地址会丢失（与 IPv4 的行为一致）；
+- 测试用的 netns 客户端需要静态邻居条目（bridge 不回 ARP/ND），属测试环境限制，与插件无关。
+
+测试后已恢复 `exchange`，并清理 netns/veth 与临时脚本。
+
 ## 8. UI 预览（离线渲染，非路由器截图）
 
 用与页面相同的 CSS / 标记 + 样本数据渲染，仅用于查看布局：

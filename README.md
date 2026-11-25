@@ -67,6 +67,11 @@ OpenWrt 25.12+ 的 **AdGuardHome** LuCI 插件：纯 JavaScript + Shell CGI，�
 apk del luci-app-adguardhome 2>/dev/null
 ```
 
+### 0. 下载
+
+从 [Releases](https://github.com/firely26710/luci-app-adguardhome/releases) 下载
+`luci-app-adguardhome-2.0.0-r1.apk`（SHA-256 `23955b94…`），或自行构建。
+
 ### 1. 解锁未签名包（只需一次）
 
 OpenWrt 25.12 默认只信任官方签名的 APK。使用未签名包时先解锁：

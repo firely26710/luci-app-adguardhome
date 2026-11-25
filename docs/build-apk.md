@@ -10,6 +10,9 @@ OpenWrt 25.12 的包是 apk-tools v3 的 ADB 容器（文件头 `ADBd`），**�
 
 两条路都不需要 285 MB 的 OpenWrt SDK。
 
+> 没有现成的签名密钥？先生成一对，并把公钥装进路由器，见
+> [signing.md](signing.md)。私钥务必留在仓库之外。
+
 ---
 
 ## A. 用现成 OpenWrt 构建树（可签名）

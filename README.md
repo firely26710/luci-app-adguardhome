@@ -116,6 +116,20 @@ apk add --allow-untrusted ./luci-app-adguardhome-2.0.0-r1.apk
 
 ---
 
+## 签名与信任（新手看这里）
+
+- OpenWrt 25.12 默认只信任 `/etc/apk/keys/` 里的公钥；签名对不上就报 `UNTRUSTED signature`。
+- **临时放行**：`apk add --allow-untrusted 包.apk`，或先跑一次解锁脚本。
+- **长期免解锁**：自己生成一对密钥，用私钥 `--sign` 打包，把公钥放进 `/etc/apk/keys/`
+  （文件名随意，apk 按内容匹配）。之后 `apk add` 直接通过。
+- 本仓库 Release 里的包是用作者构建树的密钥签的，你的路由器通常不信任那把钥匙，
+  所以对你而言仍按“未签名”处理。
+
+完整步骤（生成密钥、签名、验证、取消信任、常见坑）见
+[docs/signing.md](docs/signing.md)。
+
+---
+
 ## 快速开始
 
 1. 安装插件 + 下载核心；

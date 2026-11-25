@@ -428,10 +428,13 @@ apk del luci-app-adguardhome
 
 ## 关于这个项目
 
-我是新手，这个插件是**用 [Claude Code](https://github.com/anthropics/claude-code)（AI 编程助手）
-参考 [AdGuardHome 官方](https://github.com/AdguardTeam/AdguardHome) 安装脚本写出来的**，不是官方项目，
-也不是旧版 Lua 插件的移植。整个过程是一个人 + AI 配合：说需求 → AI 写代码 → 测试验证 → 迭代修复。
-没有历史包袱，所以能做到零 Lua、纯 JS + Shell。
+我是新手。1.x 是用 [Claude Code](https://github.com/anthropics/claude-code) 参考
+[AdGuardHome 官方](https://github.com/AdguardTeam/AdguardHome) 安装脚本写出来的；
+**2.0.0 这一版（DNS 模式修复、三页签 UI 重做、i18n、签名打包与文档）由
+[DSH（DeepSeek Harness）](https://github.com/deepseek-ai) AI agent 完成**。整个过程都是
+一个人 + AI：说需求 → 写代码 → 路由器实测 → 迭代修复。
+
+不是官方项目，也不是旧版 Lua 插件的移植。没有历史包袱，所以能做到零 Lua、纯 JS + Shell。
 
 - init 脚本 ~330 行、CGI ~200 行、前端 ~690 行、更新脚本 ~270 行；
 - 进程管理（procd）、DNS 接管（nftables/dnsmasq）、配置（UCI）、界面（LuCI JS）都是自定义集成；

@@ -70,7 +70,7 @@ apk del luci-app-adguardhome 2>/dev/null
 ### 0. 下载
 
 从 [Releases](https://github.com/firely26710/luci-app-adguardhome/releases) 下载
-`luci-app-adguardhome-2.0.0-r3.apk`（SHA-256 `0ddd3720…`），或自行构建。
+`luci-app-adguardhome-2.0.0-r4.apk`（SHA-256 `ab42fb35…`），或自行构建。
 
 ### 1. 解锁未签名包（只需一次）
 
@@ -85,7 +85,7 @@ wget -O toggle.sh https://cafe.cpolar.cn/wkdaily/cool/raw/branch/master/apk-untr
 如果包是用**你路由器已信任的密钥**签的（例如用本机 OpenWrt 构建树打包），可以跳过解锁，直接：
 
 ```sh
-apk add ./luci-app-adguardhome-2.0.0-r3.apk
+apk add ./luci-app-adguardhome-2.0.0-r4.apk
 ```
 
 ### 2. 安装
@@ -95,7 +95,7 @@ LuCI 界面：**系统 → 软件包 → 上传软件包**，选择 `.apk`。
 或命令行：
 
 ```sh
-apk add --allow-untrusted ./luci-app-adguardhome-2.0.0-r3.apk
+apk add --allow-untrusted ./luci-app-adguardhome-2.0.0-r4.apk
 ```
 
 安装脚本会自动设置权限、注册开机自启、清理 LuCI 缓存。

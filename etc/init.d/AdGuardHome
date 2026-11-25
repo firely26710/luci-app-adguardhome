@@ -279,7 +279,16 @@ start_service() {
 	logger -t AdGuardHome "Starting AdGuardHome (web:$web_port dns:$port mode:$mode)"
 
 	mkdir -p "$work_dir"
+	# AGH logs a permcheck warning when the work dir is not 0700
+	chmod 700 "$work_dir" 2>/dev/null || true
 	mkdir -p "$(dirname "$config_path")"
+
+	# Drop a stale pidfile before starting; the running instance removes its
+	# own pidfile on exit, so a leftover here means the previous run crashed.
+	if [ -f /var/run/AdGuardHome.pid ]; then
+		old_pid=$(cat /var/run/AdGuardHome.pid 2>/dev/null)
+		[ -n "$old_pid" ] && [ -d "/proc/$old_pid" ] || rm -f /var/run/AdGuardHome.pid
+	fi
 
 	# Apply DNS mode (fw4 nftables / dnsmasq upstream / port exchange)
 	apply_dns_mode "$mode" "$port" "start"
@@ -310,7 +319,9 @@ stop_service() {
 	local port=$(adh_port 2>/dev/null)
 	apply_dns_mode "$mode" "$port" "stop"
 
-	rm -f /var/run/AdGuardHome.pid
+	# Do not delete the pidfile here: AdGuardHome removes it itself while
+	# shutting down, and removing it first makes its signal handler log
+	# "remove /var/run/AdGuardHome.pid: no such file or directory".
 
 	logger -t AdGuardHome "Service stopped"
 }

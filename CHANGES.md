@@ -2,7 +2,7 @@
 
 > 记录本轮针对 `luci-app-adguardhome` 的全部改动、原因与验证结果。
 > 测试环境：OpenWrt 25.12.5 x86_64（VM），AdGuardHome v1.0.0，路由器地址 192.168.44.131。
-> 包版本：`2.0.0-r3`（Makefile 的 PKG_VERSION / PKG_RELEASE）。
+> 包版本：`2.0.0-r4`（Makefile 的 PKG_VERSION / PKG_RELEASE）。
 
 ## 1. 总览
 
@@ -327,6 +327,9 @@ apk-tools v3 的包是 ADB 容器（`ADBd`），只能由 `apk mkpkg` 生成。�
   变量执行安装脚本，旧写法会操作构建主机；现在直接退出，服务使能交给 `rootfs.mk`。
 - `2.0.0-r3`：打包改用树里的 `fakeroot` 调用 `apk mkpkg`。直接以普通用户打包时，
   包内文件 uid/gid 是 1000，装到设备上变成 `nobody:nogroup`；现在包内是 `root:root`。
+- `2.0.0-r4`：修掉两条日志噪音——`/etc/AdGuardHome` 权限改为 0700（AGH 的 permcheck
+  警告）；停止时不再提前删 pidfile（AGH 退出会自己删，提前删会让它报
+  `remove /var/run/AdGuardHome.pid: no such file or directory`）。
 
 无 OpenWrt 树时的备选：Alpine minirootfs chroot + 其 `apk mkpkg`（未签名，
 需 `--allow-untrusted`）。完整步骤见 `docs/build-apk.md`，产物在 `dist/`

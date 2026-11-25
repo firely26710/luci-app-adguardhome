@@ -14,7 +14,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-adguardhome
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_MAINTAINER:=ADH Team
 PKG_LICENSE:=Apache-2.0
@@ -97,8 +97,9 @@ define Package/luci-app-adguardhome/install
 	$(INSTALL_DATA) ./i18n/luci-app-adguardhome.zh-cn.lmo \
 		$(1)/usr/lib/lua/luci/i18n/luci-app-adguardhome.zh-cn.lmo
 
-	# Work directory for AdGuardHome configs
+	# Work directory for AdGuardHome configs.  AGH wants 0700 (permcheck).
 	$(INSTALL_DIR) $(1)/etc/AdGuardHome
+	chmod 0700 $(1)/etc/AdGuardHome
 
 	# Core binary directory
 	$(INSTALL_DIR) $(1)/usr/lib/AdGuardHome
@@ -115,6 +116,8 @@ fi
 set -e
 
 mkdir -p /var/log
+# AGH warns when its work dir is group/world accessible
+chmod 700 /etc/AdGuardHome 2>/dev/null || true
 chmod 755 /etc/init.d/AdGuardHome 2>/dev/null || true
 chmod 755 /usr/bin/agh-update 2>/dev/null || true
 chmod 755 /www/cgi-bin/agh-api 2>/dev/null || true

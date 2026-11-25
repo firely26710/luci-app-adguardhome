@@ -1,80 +1,156 @@
 # luci-app-adguardhome
 
-OpenWrt 25.12 AdGuardHome LuCI 插件。纯 JavaScript + Shell CGI，零 Lua。
+![version](https://img.shields.io/badge/version-2.0.0-blue)
+![license](https://img.shields.io/badge/license-Apache--2.0-green)
+![OpenWrt](https://img.shields.io/badge/OpenWrt-25.12%2B-00A3E0)
+![LuCI](https://img.shields.io/badge/LuCI-JavaScript-orange)
 
-## 新手必读
+OpenWrt 25.12+ 的 **AdGuardHome** LuCI 插件：纯 JavaScript + Shell CGI，零 Lua。
 
-这个插件是**用[ Claude Code（AI 编程助手）](https://github.com/anthropics/claude-code)参考[官方](https://github.com/AdguardTeam/AdguardHome)安装脚本写出来的**，不是官方项目，也不是从旧版 OpenWrt 的 Lua 插件迁移的。
+- 三个页签：运行状态、参数配置、系统日志
+- 四种 DNS 接管方式：`exchange` / `redirect` / `dnsmasq-upstream` / `none`
+- 在线更新核心，自动校验官方 `checksums.txt`，升级前备份且只保留最近一份
+- CGI 接口校验 LuCI 登录态，未登录直接 403
+- 中英文界面，跟随 LuCI 语言设置
+- 不依赖 Python/Node/编译工具，装上即用
 
-我是新手，整个过程是一个人 + AI 配合完成的：说需求 → AI 写代码 → 测试验证 → 迭代修复，不懂 Lua、不懂 OpenWrt 插件开发，但靠着 AI 一步一步把功能堆出来了。每行代码都是需求驱动的，没有历史包袱，所以能做到零 Lua、纯 JS + Shell，结构比传统 LuCI 插件简单很多。
-
-> **如果你也是新手**：不用担心，按钮点错了不会坏。最差的情况就是在 LuCI 里重启一下服务。碰到问题可以从"系统日志"Tab 看原因。
->
-> **如果你想自己改**：代码量很小，init 脚本 ~310 行，JS 前端 ~300 行，Shell CGI ~250 行。看懂一个文件就能改一个功能，不需要学 Lua。
-
-插件的下载更新部分参考了 AdGuard Home 官方安装方式（GitHub Releases 直链、CLI 参数、YAML 配置），但进程管理（procd）、DNS 劫持（nftables）、配置存储（UCI）、Web 界面（LuCI JS）这些 OpenWrt 层的集成完全是自定义的。
+> 当前版本 **2.0.0**。改动记录见 [CHANGES.md](CHANGES.md)。
 
 ---
 
-## 功能概览
+## 截图
 
-在 LuCI 的 `服务 → AdGuardHome` 下提供三个 Tab 页：
+| 运行状态 | 参数配置 |
+|---|---|
+| ![status](docs/ui-preview/status.png) | ![config](docs/ui-preview/config.png) |
 
-| Tab | 能做什么 |
-|-----|---------|
-| **运行状态** | 查看服务是否在跑、进程 PID、核心版本；启动/停止/重启；一键打开 AdGuardHome 自带的 Web 管理界面（:3000）；在线检测并下载最新版本 |
-| **参数配置** | 切换 DNS 工作模式、改端口、改文件路径、配置国内下载镜像 |
-| **系统日志** | 实时查看 AdGuardHome 相关的系统日志，3 秒自动刷新 |
+| 系统日志 | DNS 模式卡片 |
+|---|---|
+| ![logs](docs/ui-preview/logs.png) | ![dns modes](docs/ui-preview/dns-modes.png) |
 
-### 附带功能
+> 预览图是离线渲染的，不是路由器截图；实际配色跟随 LuCI 主题（Argon 等）。
 
-- **在线更新**：在"运行状态"Tab 点击"检测并更新"，自动从 GitHub 下载最新二进制，支持通过镜像加速（国内用户必备）
-- **开机自启**：安装后自动注册到 `rc.d`，重启路由器无需手动启动
-- **防火墙集成**：redirect 模式下自动生成 fw4 nftables 规则，不干扰既有防火墙
+---
+
+## 功能
+
+| 功能 | 说明 |
+|---|---|
+| **状态页** | 运行状态胶囊、Web/DNS 端口、工作模式、PID；启动/停止/重启；一键打开 AGH 自带 Web（`:3000`）；在线检测并更新（进度条 + 下载日志） |
+| **配置页** | 启停开关、DNS 模式三选一卡片、Web/DNS 端口、二进制/配置/工作目录路径、下载镜像前缀；保存后写入 UCI 并重启服务 |
+| **日志页** | 级别筛选、关键字过滤、错误/警告高亮、一键复制、回到最新；只在本页签打开时每 3 秒轮询 |
+| **DNS 接管** | 交换端口 / nftables 本地重定向 / dnsmasq 上游，三种方式覆盖不同场景 |
+| **在线更新** | GitHub Releases（支持镜像加速）、架构识别、checksums 校验、失败回滚提示、备份清理 |
+| **鉴权** | CGI 用 LuCI 会话校验，未登录 `403`；错误以稳定错误码返回，由前端翻译 |
+| **多语言** | 英文 msgid + zh-cn `.po`/`.lmo`，LuCI 自动合并到 `window.TR` |
+| **生命周期** | procd 管理、开机自启、停止时还原 dnsmasq/nftables、重启时避免 YAML 竞态 |
+
+---
+
+## 系统要求
+
+- OpenWrt **25.12 或更新**（apk 包管理）
+- LuCI（JavaScript 版，非 Lua 版）
+- 约 40 MB 空闲空间（AdGuardHome 核心约 30 MB + 备份）
+- 支持架构：x86_64、aarch64、armv7、armv6、armv5、riscv64、mips/mips64（大小端）等，更新脚本会按 `uname` 自动识别
 
 ---
 
 ## 安装
 
-OpenWrt 25.12.x 默认限制安装非官方 APK 包，需要先解锁（只需执行一次）：
+### ⚠️ 先看：与官方包同名
 
-```bash
+本包与 OpenWrt 官方 luci feed 里的 `luci-app-adguardhome` **同名**（不是同一个项目）。
+两者不要混装，安装前先卸载官方版：
+
+```sh
+apk del luci-app-adguardhome 2>/dev/null
+```
+
+### 1. 解锁未签名包（只需一次）
+
+OpenWrt 25.12 默认只信任官方签名的 APK。使用未签名包时先解锁：
+
+```sh
 wget -O toggle.sh https://cafe.cpolar.cn/wkdaily/cool/raw/branch/master/apk-untrusted-toggle.sh && sh toggle.sh
 ```
 
-解锁后，通过 LuCI 界面安装：**系统 → 软件包 → 上传软件包**，选择 `.apk`文件上传安装。
+> 参考视频：[OpenWrt 25.12.x APK 安装教程](https://www.bilibili.com/video/BV1aKJp6KEDG/)（作者：[悟空的日常](https://github.com/wukongdaily)）
 
-> 参考视频：[OpenWrt 25.12.x APK 安装教程](https://www.bilibili.com/video/BV1aKJp6KEDG/)（作者：[悟空的日常](https://github.com/wukongdaily)，[luci-app-run](https://github.com/wukongdaily/luci-app-run)）
+如果包是用**你路由器已信任的密钥**签的（例如用本机 OpenWrt 构建树打包），可以跳过解锁，直接：
 
-> APK 安装会自动处理权限和开机自启；手动安装需要自己执行上面两条命令。
+```sh
+apk add ./luci-app-adguardhome-2.0.0-r1.apk
+```
 
-装好插件后还需要下载 AdGuardHome 核心二进制才能运行——在 LuCI 的"运行状态"Tab 点击"检测并更新"即可。
+### 2. 安装
+
+LuCI 界面：**系统 → 软件包 → 上传软件包**，选择 `.apk`。
+
+或命令行：
+
+```sh
+apk add --allow-untrusted ./luci-app-adguardhome-2.0.0-r1.apk
+```
+
+安装脚本会自动设置权限、注册开机自启、清理 LuCI 缓存。
+
+### 3. 下载 AdGuardHome 核心
+
+插件本身不带核心二进制。安装后在 **服务 → AdGuardHome → 运行状态** 点击「检测并更新」，
+或手动把二进制放到 `/usr/lib/AdGuardHome/AdGuardHome`。
+
+### 4. 初始化 AdGuardHome
+
+首次打开 `http://路由器IP:3000` 会进入 AGH 自己的安装向导，创建管理员账号。
+
+> **重要**：向导默认上游是 Cloudflare DoH（`https://cloudflare-dns.com/dns-query`），
+> 在部分网络（尤其是国内）不可达，会表现为“插件正常但 DNS 不解析”。
+> 请在 AGH 的 **设置 → DNS 设置** 里改成可用的上游，例如
+> `223.5.5.5`、`119.29.29.29`，或你自建的 DNS。
+
+---
+
+## 快速开始
+
+1. 安装插件 + 下载核心；
+2. 打开 `:3000` 完成 AGH 向导，设置上游 DNS；
+3. 回到 LuCI → 参数配置，DNS 模式选 **使用 53 端口替换 dnsmasq**（默认）；
+4. 保存并重启；
+5. 在客户端执行 `nslookup example.com 路由器IP`，能解析即成功；
+6. 打开 AGH 的「查询日志」，能看到客户端查询记录。
+
+> **新手不用担心**：按钮点错了不会坏，最差是在 LuCI 里重启一下服务；出问题先看「系统日志」页。
 
 ---
 
 ## DNS 模式
 
-安装后在 LuCI 的"参数配置"Tab 中选择。**不知道该选哪个就用默认的 `exchange`。**
-
 | UCI 值 | LuCI 显示 | 做了什么 | 适合场景 |
 |--------|----------|---------|---------|
-| `exchange` | 使用53端口替换dnsmasq | dnsmasq 退到 5353，AdGuardHome 独占 53 | **默认/推荐**，简单直接 |
-| `redirect` | 重定向53端口到AdGuardHome | nftables DNAT `br-lan` :53 → `127.0.0.1:5353` | 不想动 dnsmasq 端口时 |
-| `dnsmasq-upstream` | 作为dnsmasq的上游服务器 | dnsmasq 保持 :53，设置 `server=127.0.0.1#5353` | 需要 dnsmasq 继续处理 DHCP DNS 时 |
-| `none` | （仅在 UCI 中） | 不做任何劫持，AGH 只监听自身端口 | 调试用 |
-| `replace` | （旧版，前端自动转为 exchange） | nftables DNAT 全接口 :53 → `127.0.0.1:5353` | 已废弃 |
+| `exchange` | 使用 53 端口替换 dnsmasq | AdGuardHome 独占 53，dnsmasq 退到 `adh_port`（默认 5353） | **默认/推荐**，简单直接 |
+| `redirect` | 重定向 53 端口到 AdGuardHome | nftables 本地重定向：`br-lan` :53 → AGH 端口，保留客户端 IP | 不想动 dnsmasq 端口时 |
+| `dnsmasq-upstream` | 作为 dnsmasq 的上游 | dnsmasq 保持 :53，设置 `server=127.0.0.1#adh_port` | 需要 dnsmasq 继续处理 DHCP DNS 时 |
+| `none` | （仅 UCI） | 不做任何劫持，AGH 监听 `adh_port` | 调试 / 只使用 AGH 的 Web 功能 |
+| `replace` | （旧版，已废弃） | 全接口重定向 :53 → AGH | 不推荐 |
 
-> **默认值**：`exchange`。在 LuCI 下拉框中只显示前三种，`none` 和 `replace` 是内部值，不需要手动设置。
+> **`adh_port` 的含义随模式变化**：
+> `exchange` 下它是 dnsmasq 让出来的端口（AGH 用 53）；其余模式下它是 AGH 自己监听的端口。
+> 状态页显示的“DNS 端口”是 AGH 实际监听的端口（`exchange` 下显示 53）。
+
+> **redirect 为什么不是 DNAT 到 127.0.0.1**：
+> 那需要 `net.ipv4.conf.<if>.route_localnet=1`，OpenWrt 默认关闭，规则会静默失效。
+> 这里用 nftables 的 `redirect to :端口`，不依赖 sysctl，并且保留客户端源 IP。
 
 ### 三种模式怎么选
 
 ```
 exchange（推荐）         redirect                  dnsmasq-upstream
 ─────────────────      ─────────────────         ──────────────────
- AGH 直接占 :53         nftables 劫持到 :5353     dnsmasq 转发到 :5353
- dnsmasq 退到 :5353     dnsmasq 保持 :53          dnsmasq 保持 :53
- 零额外开销              每包多一次 DNAT            每查询多一次转发
- 兼容性最好              不改 dnsmasq              兼容性最好
+ AGH 直接占 :53         nftables 重定向到 :5353     dnsmasq 转发到 :5353
+ dnsmasq 退到 :5353     dnsmasq 保持 :53           dnsmasq 保持 :53
+ 零额外开销              每个包多一次重定向           每查询多一次转发
+ 兼容性最好              不改 dnsmasq               兼容性最好
 ```
 
 ---
@@ -88,11 +164,11 @@ config adguardhome 'main'
     option enabled '1'              # 1=启用服务, 0=禁用
     option dns_mode 'exchange'      # DNS 模式（见上表）
     option web_port '3000'          # AGH 自带 Web 管理界面端口
-    option adh_port '5353'          # AGH DNS 监听端口（exchange/redirect 模式用）
+    option adh_port '5353'          # exchange 下给 dnsmasq；其余模式为 AGH 的 DNS 端口
     option binary_path '/usr/lib/AdGuardHome/AdGuardHome'   # 二进制路径
     option config_path '/etc/AdGuardHome/AdGuardHome.yaml'  # AGH YAML 配置
     option work_dir '/etc/AdGuardHome'                      # AGH 工作目录（数据存储）
-    option log_file '/var/log/AdGuardHome.log'              # 运行日志
+    option log_file '/var/log/AdGuardHome.log'              # 保留字段（当前未传给进程）
     option dl_mirror_prefix 'https://gh-proxy.com/https://github.com'  # 下载镜像前缀
 ```
 
@@ -100,54 +176,36 @@ config adguardhome 'main'
 |------|--------|------|
 | `enabled` | `1` | 设为 `0` 后即使 init 脚本被调用也不会启动进程 |
 | `dns_mode` | `exchange` | 详见上方 DNS 模式章节 |
-| `web_port` | `3000` | 访问 `http://路由器IP:3000` 进入 AGH 自带管理界面 |
-| `adh_port` | `5353` | AdGuardHome DNS 监听端口，redirect 和 dnsmasq-upstream 模式下使用 |
-| `binary_path` | `/usr/lib/AdGuardHome/AdGuardHome` | 下载更新也会安装到这个路径 |
-| `dl_mirror_prefix` | `https://gh-proxy.com/https://github.com` | GitHub 下载镜像，已预配，可换成其他加速服务 |
+| `web_port` | `3000` | 访问 `http://路由器IP:3000` 进入 AGH 自带管理界面；会以 `--web-addr` 传给进程 |
+| `adh_port` | `5353` | `exchange` 下是 dnsmasq 让出的端口；其余模式下是 AGH 监听的 DNS 端口 |
+| `binary_path` | `/usr/lib/AdGuardHome/AdGuardHome` | 下载更新也安装到这里 |
+| `config_path` | `/etc/AdGuardHome/AdGuardHome.yaml` | 通过 `--config` 传给 AGH 进程 |
+| `work_dir` | `/etc/AdGuardHome` | AGH 的数据目录（统计、查询日志） |
+| `log_file` | `/var/log/AdGuardHome.log` | 保留字段；日志页读取的是 `logread` |
+| `dl_mirror_prefix` | `https://gh-proxy.com/https://github.com` | GitHub 下载镜像，可换其他加速服务 |
 
 ---
 
 ## 与 OpenClash 共存
 
-AdGuardHome 和 OpenClash 都试图控制 DNS（端口 53 或 nftables 重定向），直接部署会互相抢流量。推荐 **AGH 在前、Clash 在后** 的方案：
+两者都想控制 DNS，推荐 **AGH 在前、Clash 在后**：
 
 ```
 ┌─────────┐ :53 ┌──────────────┐ :7874 ┌──────────────────┐ ┌──────────┐
 │ 客户端   │ ──→ │ AdGuardHome  │ ────→ │ OpenClash DNS    │ ──→ │ 上游 DNS │
 │         │     │ 广告过滤/日志  │       │ GFW分流/代理      │   │          │
 └─────────┘     └──────────────┘       └──────────────────┘   └──────────┘
-                  :53 (exchange)          :7874 (Clash DNS)
 ```
 
-### 操作步骤
+**AdGuardHome 侧**：DNS 模式选 `exchange`；在 AGH Web 界面把上游改成 `127.0.0.1:7874`。
 
-**AdGuardHome 侧**（LuCI → 参数配置）：
+**OpenClash 侧**：关闭「本地 DNS 劫持」，关闭「禁止 Dnsmasq 缓存」。
 
-| 设置项 | 值 |
-|--------|-----|
-| DNS 模式 | `使用53端口替换dnsmasq`（exchange） |
-| 上游 DNS | `127.0.0.1:7874`（在 AdGuardHome Web 界面 `:3000` → 设置 → DNS 设置 中配置） |
+注意事项：
 
-**OpenClash 侧**（插件设置 → 全局设置 → DNS 设置）：
-
-| 设置项 | 值 |
-|--------|-----|
-| 本地 DNS 劫持 | **关闭** |
-| 禁止 Dnsmasq 缓存 | 关闭（由 AGH 缓存） |
-
-> **关键**：关闭 OpenClash 的 DNS 劫持，让 AGH 独占 :53，AGH 再把查询转发给 OpenClash DNS（:7874）做 GFW 分流。
-
-### 注意事项
-
-- OpenClash 的 **Fake-IP 模式在此方案下不可用**
-- 如需 Fake-IP，改用 Clash 在前（AGH 用 `dnsmasq-upstream` 模式），但会丢失真实客户端 IP
-- OpenClash DNS 端口如果不是 7874，在 AGH 上游中填写实际端口
-
-### 关于 redirect 模式与 OpenClash 的冲突
-
-AGH 的 `redirect` 模式会在 `/usr/share/nftables.d/chain-post/dstnat/` 下生成 nftables 规则文件。如果 OpenClash 也开启 DNS 劫持，两条规则在同一个 `dstnat` 链中，**文件名数字小的先匹配**，结果不可预期。
-
-> 共存场景优先用 `exchange` 模式，从根源上避免 nftables 规则冲突。
+- 该方案下 OpenClash 的 **Fake-IP 不可用**；
+- 如需 Fake-IP，改成 Clash 在前 + AGH 用 `dnsmasq-upstream`，但 AGH 只能看到 `127.0.0.1`；
+- `redirect` 与 OpenClash 的 DNS 劫持会在同一个 `dstnat` 链里抢匹配，共存场景优先 `exchange`。
 
 ---
 
@@ -155,78 +213,133 @@ AGH 的 `redirect` 模式会在 `/usr/share/nftables.d/chain-post/dstnat/` 下�
 
 ```
 luci-app-adguardhome/
-├── Makefile                                      # APK 打包定义
+├── Makefile                                      # APK 打包定义（含 postinst/prerm）
 ├── README.md
+├── CHANGES.md                                    # 改动记录（含实测结果）
+├── LICENSE
+├── docs/
+│   ├── build-apk.md                              # 本地打包 .apk 的两种方式
+│   └── ui-preview/                               # UI 预览图（离线渲染）
+├── po/zh-cn/                                     # 翻译源文件（英文 msgid → 中文）
+├── i18n/                                         # 编译产物（.lmo，装到 LuCI）
+├── tools/mklmo.py                                # .po → .lmo（不依赖 po2lmo）
 ├── etc/
 │   ├── config/adguardhome                        # UCI 默认配置
-│   └── init.d/AdGuardHome                        # procd 启动脚本（~310 行）
+│   └── init.d/AdGuardHome                        # procd 启动脚本（~330 行）
 ├── usr/
-│   ├── bin/agh-update                            # 在线更新脚本
+│   ├── bin/agh-update                            # 在线更新脚本（~270 行）
 │   └── share/
-│       ├── luci/menu.d/luci-app-adguardhome.json # LuCI 菜单注册
-│       └── rpcd/acl.d/luci-app-adguardhome.json  # 权限声明
+│       ├── luci/menu.d/luci-app-adguardhome.json
+│       └── rpcd/acl.d/luci-app-adguardhome.json
 └── www/
-    ├── cgi-bin/agh-api                           # CGI 后端 API（~250 行）
+    ├── cgi-bin/agh-api                           # CGI 后端（~200 行）
     └── luci-static/resources/view/adguardhome/
-        └── main.js                               # LuCI 前端 JS（~300 行）
+        └── main.js                               # 前端（~690 行）
 ```
 
-### 各文件职责
-
-| 文件 | 语言 | 干什么 |
-|------|------|--------|
-| `Makefile` | Make | 定义包名、依赖、安装路径、安装后脚本 |
-| `etc/init.d/AdGuardHome` | Shell | procd 进程管理、三种 DNS 模式实现、nftables 规则生成 |
-| `etc/config/adguardhome` | UCI | 默认配置值 |
-| `usr/bin/agh-update` | Shell | 下载 + 解压 + 替换二进制，支持国内镜像 |
-| `www/cgi-bin/agh-api` | Shell | LuCI 后端，启停/日志/配置读写/更新进度 |
-| `www/.../main.js` | JavaScript | LuCI 前端 UI，三个 Tab 页 |
-| `menu.d/*.json` | JSON | 在 LuCI 菜单中注册入口 |
-| `acl.d/*.json` | JSON | 声明 CGI 需要的文件/ubus/uci 权限 |
+| 文件 | 语言 | 职责 |
+|------|------|------|
+| `etc/init.d/AdGuardHome` | Shell | procd 进程管理、三种 DNS 模式、nftables 规则、dnsmasq 联动 |
+| `usr/bin/agh-update` | Shell | 架构识别、下载、checksums 校验、替换二进制、备份清理 |
+| `www/cgi-bin/agh-api` | Shell | 状态/启停/配置/日志/更新进度，登录态校验 |
+| `www/.../main.js` | JavaScript | 三个页签的 UI 与交互 |
+| `po/` + `i18n/` | gettext | 翻译源文件与编译产物 |
+| `tools/mklmo.py` | Python（构建期） | `.po` → `.lmo`，运行时不安装 |
 
 ### 数据流
 
 ```
 浏览器 LuCI 页面
-  │ main.js 调用 /cgi-bin/agh-api?action=xxx
+  │ main.js → /cgi-bin/agh-api?action=xxx
   ▼
 uhttpd 执行 agh-api (Shell CGI)
   │ 读写 UCI、操作 init.d、调用 agh-update
   ▼
 /etc/init.d/AdGuardHome (procd)
-  │ 启动/停止 AdGuardHome 进程
-  │ 生成 nftables 规则、修改 dnsmasq 配置
+  │ 启停 AGH、生成 nftables 规则、修改 dnsmasq
   ▼
-/usr/lib/AdGuardHome/AdGuardHome (官方二进制)
-  │ 实际 DNS 过滤 + Web 管理界面
+/usr/lib/AdGuardHome/AdGuardHome（官方二进制）
 ```
 
 ---
 
-## CGI API 参考
+## CGI API
 
-用于调试或脚本调用。所有接口返回 JSON。
+所有接口返回 JSON，**需要 LuCI 登录态**；未登录/会话失效返回 `403`。
 
-| `action=` | 方法 | 说明 | 示例 |
-|-----------|------|------|------|
-| `status` | GET | 服务状态 | `curl /cgi-bin/agh-api?action=status` |
-| `start` | GET | 启动服务 | |
-| `stop` | GET | 停止服务 | |
-| `restart` | GET | 重启服务 | |
-| `get_log&lines=N` | GET | 读取日志最后 N 行 | |
-| `get_config` | GET | 读取 UCI 配置 | |
-| `save_config` | GET | 保存 UCI 配置并重启 | `?action=save_config&enabled=1&dns_mode=exchange` |
-| `check_update` | GET | 检查最新版本 | |
-| `update&version=vX` | GET | 后台下载指定版本 | `?action=update&version=v0.107.62` |
-| `update_progress` | GET | 查询下载进度(0-100) | |
+浏览器会把会话 id 写入同源 cookie `agh_sid`。命令行调试：
+
+```sh
+curl -c /tmp/luci.jar -X POST http://路由器IP/cgi-bin/luci \
+  --data-urlencode 'luci_username=root' --data-urlencode 'luci_password=密码'
+
+SID=$(awk '/sysauth_http/{print $7}' /tmp/luci.jar)
+curl -b "agh_sid=$SID" 'http://路由器IP/cgi-bin/agh-api?action=status'
+```
+
+| `action=` | 说明 |
+|-----------|------|
+| `status` | 服务状态（运行中、PID、端口、版本） |
+| `start` / `stop` / `restart` | 启停服务 |
+| `get_log&lines=N` | 读取系统日志最后 N 行 |
+| `get_config` / `save_config` | 读写 UCI 配置（`save_config` 会重启服务） |
+| `get_yaml` / `save_yaml` | 读写 AGH 的 YAML（高级用法，前端未使用） |
+| `check_update` | 检查 GitHub 最新版本 |
+| `update&version=vX.Y.Z` | 后台下载指定版本，版本号会做格式校验 |
+| `update_progress` | 进度 0–100；`-1` 表示失败 |
+
+错误码（前端负责翻译）：`unauthorized`、`version_required`、`invalid_version`、
+`latest_version_unavailable`。
+
+---
+
+## 多语言
+
+- 源码用英文 msgid（`_('System log')`）；
+- `po/zh-cn/luci-app-adguardhome.po` 提供中文；
+- `i18n/luci-app-adguardhome.zh-cn.lmo` 装到 `/usr/lib/lua/luci/i18n/`；
+- LuCI 按当前语言合并成 `window.TR`。
+
+新增语言：
+
+```sh
+cp -r po/zh-cn po/de
+# 翻译 po/de/*.po 后编译
+python3 tools/mklmo.py po/de/luci-app-adguardhome.po i18n/luci-app-adguardhome.de.lmo
+```
+
+> `_()` 的 key 是 msgid 的哈希，改文案必须同步改 `.po` 并重新生成 `.lmo`。
+
+---
+
+## 构建与打包
+
+本包不依赖 luci.mk，可直接用 OpenWrt SDK 或任意已编译的 OpenWrt 树打包：
+
+```sh
+# 在 OpenWrt SDK / 源码树中
+cp -r luci-app-adguardhome package/
+make package/luci-app-adguardhome/compile V=s
+```
+
+APK 是 apk-tools v3 的 ADB 容器，不能手工 tar；两种本地打包方式（含签名、密钥匹配、
+`apk verify`）见 [docs/build-apk.md](docs/build-apk.md)。
+
+版本号在 `Makefile`：`PKG_VERSION` / `PKG_RELEASE`，产物名为
+`luci-app-adguardhome-<version>-r<release>.apk`。
+
+---
+
+## 更新日志
+
+见 [CHANGES.md](CHANGES.md)：按 init / 更新脚本 / CGI / 前端 / i18n / 打包分节，
+包含路由器实测结果和已知限制。
 
 ---
 
 ## 常见问题
 
-### Q: 安装后 LuCI 菜单没出现？
-
-刷新浏览器缓存，或者在路由器上执行：
+### 安装后 LuCI 菜单没出现？
 
 ```sh
 rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/*
@@ -234,41 +347,96 @@ rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/*
 
 然后重新登录 LuCI。
 
-### Q: 服务显示"已停止"？
+### 提示签名不受信任？
 
-先确认二进制文件是否存在且可执行：
+说明包不是用你路由器信任的密钥签的。两条路：执行上面的解锁脚本，或
+`apk add --allow-untrusted`。自己用路由器同款构建树签名的包不需要。
+
+### 和官方 luci-app-adguardhome 冲突？
+
+同名不同项目，先 `apk del luci-app-adguardhome` 再装本包，不要混装。
+
+### 服务显示“已停止”？
+
+确认核心存在且可执行：
 
 ```sh
 ls -la /usr/lib/AdGuardHome/AdGuardHome
 ```
 
-如果不存在，在 LuCI 的"运行状态"Tab 点击"检测并更新"下载核心。
+没有就在状态页点「检测并更新」。
 
-### Q: redirect 模式下 DNS 不生效？
+### 插件正常但 DNS 不解析？
 
-检查 nftables 规则是否正确加载：
+先看 AGH 的查询日志有没有记录：
 
-```sh
-nft list chain inet fw4 dstnat | grep -A5 adguardhome
-```
+- 没有记录 → DNS 没被接管：检查模式、`adh_port`、nft 规则；
+- 有记录但超时/失败 → 上游不可达：到 AGH Web 界面改上游（向导默认 DoH 可能被墙）。
 
-如果没有输出，尝试重启防火墙：`/etc/init.d/firewall reload`
-
-### Q: exchange 模式下 dnsmasq 异常？
-
-检查 dnsmasq 端口是否正确切换到 5353：
+### redirect 模式不生效？
 
 ```sh
-uci get dhcp.@dnsmasq[0].port
-# 应该输出 5353
+nft list chain inet fw4 adguardhome_dns
 ```
 
-### Q: AGH Web 界面(:3000)打不开？
+没有输出就重启防火墙：`/etc/init.d/firewall reload`。
 
-1. 确认服务在运行：`/etc/init.d/AdGuardHome status`
-2. 确认端口：`netstat -tlnp | grep AdGuard`
-3. 确认防火墙没有拦截 3000 端口
+### exchange 下 dnsmasq 端口不对？
 
-### Q: 下载太慢或失败？
+```sh
+uci get dhcp.@dnsmasq[0].port    # 应为 5353（或你设置的 adh_port）
+```
 
-已预配镜像，如果失效可在"参数配置"中换成其他 GitHub 加速服务。
+### AGH Web（:3000）打不开？
+
+```sh
+/etc/init.d/AdGuardHome status
+netstat -tlnp | grep AdGuard
+```
+
+并确认防火墙没有拦截 3000。
+
+### 下载太慢/失败？
+
+参数配置里换 `dl_mirror_prefix`，或手动下载后放到 `binary_path`。
+
+---
+
+## 卸载
+
+```sh
+apk del luci-app-adguardhome
+```
+
+`pre-deinstall` 会停服务、清理 nft 规则并关闭自启。
+
+> 注意：`apk del` 会一并删除 `/etc/config/adguardhome`；重装会恢复默认配置。
+> AGH 自己的数据目录 `/etc/AdGuardHome`（含 YAML、统计、查询日志）和核心二进制
+> 不归包管理，需要手动删除。
+
+---
+
+## 已知限制
+
+- `log_file` 仍是保留字段，未传给 AGH 进程（日志页读 syslog）；
+- 登录态过期后只提示一次，不会自动跳登录页；
+- `redirect` 规则里 LAN 接口写死 `br-lan`，接口命名不同的固件需自行调整；
+- 升级场景下 conffiles 合并未实测；`apk del` 会删配置；
+- 只验证过 x86_64 实机，其他架构的二进制下载路径来自官方命名规则，未逐一实测。
+
+---
+
+## 关于这个项目
+
+我是新手，这个插件是**用 [Claude Code](https://github.com/anthropics/claude-code)（AI 编程助手）
+参考 [AdGuardHome 官方](https://github.com/AdguardTeam/AdguardHome) 安装脚本写出来的**，不是官方项目，
+也不是旧版 Lua 插件的移植。整个过程是一个人 + AI 配合：说需求 → AI 写代码 → 测试验证 → 迭代修复。
+没有历史包袱，所以能做到零 Lua、纯 JS + Shell。
+
+- init 脚本 ~330 行、CGI ~200 行、前端 ~690 行、更新脚本 ~270 行；
+- 进程管理（procd）、DNS 接管（nftables/dnsmasq）、配置（UCI）、界面（LuCI JS）都是自定义集成；
+- 下载更新沿用了官方 Release 的命名与目录结构。
+
+**License**：Apache-2.0，见 [LICENSE](LICENSE)。
+
+AdGuardHome 是 Adguard Software Ltd. 的商标/项目；本项目与官方无隶属关系。

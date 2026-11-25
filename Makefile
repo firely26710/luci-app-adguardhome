@@ -13,12 +13,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-adguardhome
-PKG_VERSION:=1.0.1
-PKG_RELEASE:=20260629
+PKG_VERSION:=2.0.0
+PKG_RELEASE:=1
 
 PKG_MAINTAINER:=ADH Team
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
+PKGARCH:=all
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -29,7 +30,6 @@ define Package/luci-app-adguardhome
 	TITLE:=LuCI Support for AdGuardHome
 	URL:=https://github.com/firely26710/luci-app-adguardhome.git
 	DEPENDS:=+luci-base +nftables +curl +wget +rpcd
-	PKGARCH:=all
 endef
 
 define Package/luci-app-adguardhome/description
@@ -92,6 +92,11 @@ define Package/luci-app-adguardhome/install
 	$(INSTALL_DATA) ./usr/share/rpcd/acl.d/luci-app-adguardhome.json \
 		$(1)/usr/share/rpcd/acl.d/luci-app-adguardhome.json
 
+	# i18n catalog (zh-cn).  Regenerate with: python3 tools/mklmo.py
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
+	$(INSTALL_DATA) ./i18n/luci-app-adguardhome.zh-cn.lmo \
+		$(1)/usr/lib/lua/luci/i18n/luci-app-adguardhome.zh-cn.lmo
+
 	# Work directory for AdGuardHome configs
 	$(INSTALL_DIR) $(1)/etc/AdGuardHome
 
@@ -107,7 +112,12 @@ mkdir -p /var/log
 chmod 755 /etc/init.d/AdGuardHome 2>/dev/null || true
 chmod 755 /usr/bin/agh-update 2>/dev/null || true
 chmod 755 /www/cgi-bin/agh-api 2>/dev/null || true
-rm -f /var/run/AdGuardHome.pid
+# Only drop a stale pidfile: deleting it while the service is running would
+# make the plugin UI report "stopped" until the next restart.
+if [ -f /var/run/AdGuardHome.pid ]; then
+	pid="$(cat /var/run/AdGuardHome.pid 2>/dev/null)"
+	[ -n "$pid" ] && [ -d "/proc/$pid" ] || rm -f /var/run/AdGuardHome.pid
+fi
 
 if [ -f /etc/config/adguardhome ]; then
 	echo "Existing config found, preserving..."

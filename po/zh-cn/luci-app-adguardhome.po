@@ -1,0 +1,368 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-adguardhome\n"
+"Language: zh-cn\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: main.js
+msgid "Action failed"
+msgstr "操作失败"
+
+#: main.js
+msgid "AdGuardHome YAML config, passed to the process with --config"
+msgstr "AdGuardHome 的 YAML 配置，通过 --config 传给进程"
+
+#: main.js
+msgid "All levels"
+msgstr "全部级别"
+
+#: main.js
+msgid "Already up to date (%s)"
+msgstr "已是最新版本（%s）"
+
+#: main.js
+msgid "Auto refresh"
+msgstr "自动刷新"
+
+#: main.js
+msgid "Binary"
+msgstr "执行文件"
+
+#: main.js
+msgid "Check and update"
+msgstr "检测并更新"
+
+#: main.js
+msgid "Check failed"
+msgstr "检测失败"
+
+#: main.js
+msgid "Checking for the latest version…"
+msgstr "正在检测最新版本…"
+
+#: main.js
+msgid "Checking…"
+msgstr "检测中…"
+
+#: main.js
+msgid "Click \"Check and update\" to get the latest version"
+msgstr "点击「检测并更新」获取最新版本"
+
+#: main.js
+msgid "Config file"
+msgstr "配置文件"
+
+#: main.js
+msgid "Configuration saved, service restarted"
+msgstr "配置已保存，服务已重启"
+
+#: main.js
+msgid "Copied to clipboard"
+msgstr "已复制到剪贴板"
+
+#: main.js
+msgid "Copy"
+msgstr "复制"
+
+#: main.js
+msgid "Copy failed"
+msgstr "复制失败"
+
+#: main.js
+msgid "Core update"
+msgstr "核心更新"
+
+#: main.js
+msgid "Core version"
+msgstr "核心版本"
+
+#: main.js
+msgid "Could not fetch the latest version"
+msgstr "无法获取最新版本"
+
+#: main.js
+msgid "DNS ad blocking and hijacking control"
+msgstr "DNS 广告过滤与域名劫持"
+
+#: main.js
+msgid "DNS mode"
+msgstr "DNS 工作模式"
+
+#: main.js
+msgid "DNS port"
+msgstr "DNS 端口"
+
+#: main.js
+msgid "Download mirror prefix"
+msgstr "下载镜像前缀"
+
+#: main.js
+msgid "Downloads"
+msgstr "下载设置"
+
+#: main.js
+msgid "Enable on boot"
+msgstr "启用服务（开机自启）"
+
+#: main.js
+msgid "Errors only"
+msgstr "仅错误"
+
+#: main.js
+msgid "Errors: %s"
+msgstr "错误：%s"
+
+#: main.js
+msgid "Filter keyword…"
+msgstr "过滤关键字…"
+
+#: main.js
+msgid "General"
+msgstr "基本设置"
+
+#: main.js
+msgid "GitHub Releases · mirror supported"
+msgstr "GitHub Releases · 支持镜像加速"
+
+#: main.js
+msgid "In exchange mode dnsmasq uses this port; otherwise AdGuardHome listens on it"
+msgstr "exchange 模式下该端口让给 dnsmasq；其他模式下 AGH 监听此端口"
+
+#: main.js
+msgid "Keep dnsmasq and DNAT LAN queries to AdGuardHome with nftables"
+msgstr "不改 dnsmasq，用 nftables DNAT 把 LAN 查询转到 AGH"
+
+#: main.js
+msgid "Latest version"
+msgstr "最新版本"
+
+#: main.js
+msgid "Leave empty to use GitHub directly, or set another accelerator prefix"
+msgstr "留空则直连 GitHub，也可以换成其他 GitHub 加速前缀"
+
+#: main.js
+msgid "Lines: %s"
+msgstr "共 %s 行"
+
+#: main.js
+msgid "Loading…"
+msgstr "加载中…"
+
+#: main.js
+msgid "Log file"
+msgstr "日志文件"
+
+#: main.js
+msgid "Logs"
+msgstr "系统日志"
+
+#: main.js
+msgid "Matched: %s"
+msgstr "匹配 %s"
+
+#: main.js
+msgid "New version %s found, downloading…"
+msgstr "发现新版本 %s，正在下载…"
+
+#: main.js
+msgid "No hijack"
+msgstr "不劫持"
+
+#: main.js
+msgid "No log entries"
+msgstr "暂无日志记录"
+
+#: main.js
+msgid "No matching log lines"
+msgstr "没有匹配的日志"
+
+#: main.js
+msgid "Nothing to copy"
+msgstr "暂无日志可复制"
+
+#: main.js
+msgid "Notices only"
+msgstr "仅通知"
+
+#: main.js
+msgid "Online updates install the new binary here"
+msgstr "在线更新会把新二进制安装到这里"
+
+#: main.js
+msgid "Open web UI ↗"
+msgstr "打开 Web 界面 ↗"
+
+#: main.js
+msgid "Paths"
+msgstr "路径设置"
+
+#: main.js
+msgid "Process PID"
+msgstr "进程 PID"
+
+#: main.js
+msgid "Recommended. AdGuardHome takes 53 and dnsmasq moves to the DNS port below"
+msgstr "推荐。AGH 独占 53，dnsmasq 退让到下面配置的 DNS 端口"
+
+#: main.js
+msgid "Redirect 53"
+msgstr "重定向 53"
+
+#: main.js
+msgid "Redirect port 53 to AdGuardHome"
+msgstr "重定向 53 端口到 AGH"
+
+#: main.js
+msgid "Refresh"
+msgstr "刷新"
+
+#: main.js
+msgid "Refreshes every 3s · only while this tab is open"
+msgstr "每 3 秒刷新 · 仅在本页签时轮询"
+
+#: main.js
+msgid "Replace dnsmasq (53)"
+msgstr "替换 dnsmasq（53）"
+
+#: main.js
+msgid "Replace dnsmasq on port 53"
+msgstr "使用 53 端口替换 dnsmasq"
+
+#: main.js
+msgid "Reserved. The Logs tab reads syslog (logread)"
+msgstr "保留字段；日志页读取的是系统日志 logread"
+
+#: main.js
+msgid "Restart"
+msgstr "重启"
+
+#: main.js
+msgid "Restarted"
+msgstr "已重启"
+
+#: main.js
+msgid "Running"
+msgstr "运行中"
+
+#: main.js
+msgid "Runtime data such as statistics and query log"
+msgstr "统计数据、查询日志等运行时数据目录"
+
+#: main.js
+msgid "Save and restart"
+msgstr "保存并重启"
+
+#: main.js
+msgid "Save failed"
+msgstr "保存失败"
+
+#: main.js
+msgid "Saved to UCI and restarts the service"
+msgstr "保存后写入 UCI 并重启服务"
+
+#: main.js
+msgid "Saves to UCI and restarts AdGuardHome"
+msgstr "保存后会写入 UCI 并重启 AdGuardHome"
+
+#: main.js
+msgid "Service"
+msgstr "服务状态"
+
+#: main.js
+msgid "Session expired, please reload the page"
+msgstr "登录状态已失效，请刷新页面"
+
+#: main.js
+msgid "Settings"
+msgstr "参数配置"
+
+#: main.js
+msgid "Start"
+msgstr "启动"
+
+#: main.js
+msgid "Started"
+msgstr "已启动"
+
+#: main.js
+msgid "Status"
+msgstr "运行状态"
+
+#: main.js
+msgid "Stop"
+msgstr "停止"
+
+#: main.js
+msgid "Stopped"
+msgstr "已停止"
+
+#: main.js
+msgid "Switching mode reconfigures dnsmasq / nftables"
+msgstr "切换模式会重新配置 dnsmasq / nftables"
+
+#: main.js
+msgid "System log"
+msgstr "系统日志"
+
+#: main.js
+msgid "Update complete!"
+msgstr "更新完成！"
+
+#: main.js
+msgid "Update failed, see the download log"
+msgstr "更新失败，请查看下载日志"
+
+#: main.js
+msgid "Update log will appear here"
+msgstr "更新日志会显示在这里"
+
+#: main.js
+msgid "Update timed out, please retry"
+msgstr "更新超时，请重试"
+
+#: main.js
+msgid "Updated %s"
+msgstr "更新 %s"
+
+#: main.js
+msgid "Use as dnsmasq upstream"
+msgstr "作为 dnsmasq 的上游"
+
+#: main.js
+msgid "Version is required"
+msgstr "请指定版本号"
+
+#: main.js
+msgid "Warnings only"
+msgstr "仅警告"
+
+#: main.js
+msgid "Warnings: %s"
+msgstr "警告：%s"
+
+#: main.js
+msgid "Web port"
+msgstr "Web 管理端口"
+
+#: main.js
+msgid "Work directory"
+msgstr "工作目录"
+
+#: main.js
+msgid "dnsmasq keeps 53 and forwards queries to AdGuardHome"
+msgstr "dnsmasq 保持 53，把查询转发给 AGH"
+
+#: main.js
+msgid "dnsmasq upstream"
+msgstr "dnsmasq 上游"
+
+#: main.js
+msgid "↓ Jump to latest"
+msgstr "↓ 回到最新"
+
+#: main.js
+msgid "Invalid version"
+msgstr "版本号无效"

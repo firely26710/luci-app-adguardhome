@@ -3,7 +3,9 @@
 # Usage: /usr/bin/agh-update [version]
 # Example: /usr/bin/agh-update 0.107.62
 
-set -e
+# -e: exit on error, -f: no globbing, -u: unset variables are errors
+# (the official scripts/install.sh uses the same set)
+set -e -f -u
 
 VERSION="${1:-}"
 
@@ -17,36 +19,63 @@ fi
 # Strip leading 'v' if present
 VERSION="${VERSION#v}"
 
-# Determine architecture
-ARCH="linux_amd64"
-MACHINE=$(uname -m)
-case "$MACHINE" in
-	x86_64|amd64)
-		ARCH="linux_amd64"
-		;;
-	aarch64|arm64)
-		ARCH="linux_arm64"
-		;;
-	armv5*)
-		ARCH="linux_armv5"
-		;;
-	armv6*)
-		ARCH="linux_armv6"
-		;;
-	armv7*)
-		ARCH="linux_armv7"
-		;;
-	mips)
-		ARCH="linux_mips_softfloat"
-		;;
-	mips64)
-		ARCH="linux_mips64_softfloat"
-		;;
-	*)
-		echo "Error: Unsupported architecture: $MACHINE"
-		exit 1
-		;;
-esac
+# Detect CPU endianness the same way the official scripts/install.sh does:
+# hexdump (not od) is used because OpenWrt ships hexdump but not od.
+is_little_endian() {
+	local result
+	result="$(printf 'I' | hexdump -o | awk '{ print substr($2, 6, 1); exit; }')"
+	[ "$result" = "1" ]
+}
+
+# Map "uname -m" to the AdGuardHome release CPU name.  mips/mips64 are
+# ambiguous: the same kernel machine string is used for both byte orders,
+# so the CPU itself has to be probed (mipsle_softfloat vs mips_softfloat).
+detect_arch() {
+	local machine="$1"
+	local cpu
+	case "$machine" in
+		x86_64|amd64|x64)
+			cpu="amd64"
+			;;
+		i386|i486|i586|i686|i786|x86)
+			cpu="386"
+			;;
+		armv8l)
+			cpu="armv7"
+			;;
+		armv5*)
+			cpu="armv5"
+			;;
+		armv6*)
+			cpu="armv6"
+			;;
+		armv7*|armv8*)
+			cpu="armv7"
+			;;
+		aarch64|arm64)
+			cpu="arm64"
+			;;
+		mips|mips64)
+			cpu="$machine"
+			is_little_endian && cpu="${cpu}le"
+			cpu="${cpu}_softfloat"
+			;;
+		riscv64)
+			cpu="riscv64"
+			;;
+		*)
+			return 1
+			;;
+	esac
+	echo "$cpu"
+}
+
+MACHINE="$(uname -m)"
+CPU="$(detect_arch "$MACHINE")" || {
+	echo "Error: Unsupported architecture: $MACHINE"
+	exit 1
+}
+ARCH="linux_${CPU}"
 
 FILENAME="AdGuardHome_${ARCH}.tar.gz"
 PACKAGE_NAME="AdGuardHome_${ARCH}"
@@ -84,7 +113,7 @@ download_ok=0
 if command -v curl >/dev/null 2>&1; then
 	echo "Using curl to download..."
 	echo "10" > "$PROG_FILE"
-	if curl -L --connect-timeout 30 --max-time 300 -o "${TEMP_DIR}/${FILENAME}" "$URL" 2>&1; then
+	if curl -fL --connect-timeout 30 --max-time 300 -o "${TEMP_DIR}/${FILENAME}" "$URL" 2>&1; then
 		download_ok=1
 		echo "60" > "$PROG_FILE"
 	else
@@ -107,6 +136,47 @@ if [ "$download_ok" = "0" ]; then
 		rm -rf "$TEMP_DIR"
 		exit 1
 	fi
+fi
+
+# Verify the archive against the release checksums.  GitHub and the mirrors
+# publish checksums.txt next to the tarball; if it cannot be fetched we only
+# warn (some mirrors do not proxy every asset), but a mismatch is fatal.
+verify_archive() {
+	local sums="$1" name="$2" expected actual
+	# checksums.txt uses "./<file>" names, so strip a leading "./" first
+	expected=$(awk -v n="$name" '{ f = $2; sub(/^\.\//, "", f); if (f == n) { print $1; exit } }' "$sums" 2>/dev/null | tr -d '\r')
+	[ -n "$expected" ] || { echo "Warning: ${name} not listed in checksums.txt, skipping"; return 0; }
+	actual=$(sha256sum "${TEMP_DIR}/${name}" | awk '{print $1}')
+	if [ "$expected" != "$actual" ]; then
+		echo "Error: checksum mismatch for ${name}"
+		echo "  expected: $expected"
+		echo "  actual:   $actual"
+		return 1
+	fi
+	echo "Checksum OK: ${name}"
+}
+
+if command -v sha256sum >/dev/null 2>&1; then
+	SUMS_URL="${URL%/*}/checksums.txt"
+	SUMS_FILE="${TEMP_DIR}/checksums.txt"
+	echo "Verifying checksum..."
+	sums_ok=0
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsL --connect-timeout 20 --max-time 60 -o "$SUMS_FILE" "$SUMS_URL" 2>/dev/null && sums_ok=1
+	fi
+	if [ "$sums_ok" = "0" ] && command -v wget >/dev/null 2>&1; then
+		wget --timeout=30 -q -O "$SUMS_FILE" "$SUMS_URL" 2>/dev/null && sums_ok=1
+	fi
+	if [ "$sums_ok" = "1" ]; then
+		if ! verify_archive "$SUMS_FILE" "$FILENAME"; then
+			rm -rf "$TEMP_DIR"
+			exit 1
+		fi
+	else
+		echo "Warning: could not download checksums.txt, skipping checksum verification"
+	fi
+else
+	echo "Warning: sha256sum not available, skipping checksum verification"
 fi
 
 echo "Download complete. Extracting..."
@@ -156,15 +226,22 @@ if /etc/init.d/AdGuardHome status 2>/dev/null | grep -q "running"; then
 	/etc/init.d/AdGuardHome stop
 fi
 
-# Backup existing binary
-if [ -f /usr/lib/AdGuardHome/AdGuardHome ]; then
-	cp /usr/lib/AdGuardHome/AdGuardHome "/usr/lib/AdGuardHome/AdGuardHome.bak-$(date +%Y%m%d%H%M%S)"
-	echo "Backup created"
-fi
-
 # Replace binary (read target path from UCI)
 TARGET=$(uci -q get adguardhome.main.binary_path 2>/dev/null || echo "/usr/lib/AdGuardHome/AdGuardHome")
-[ -d "$(dirname "$TARGET")" ] || mkdir -p "$(dirname "$TARGET")"
+TARGET_DIR=$(dirname "$TARGET")
+[ -d "$TARGET_DIR" ] || mkdir -p "$TARGET_DIR"
+
+# Back up the current binary but keep only the newest backup: each one is
+# ~30 MB and small routers have no room for an unbounded history.
+if [ -f "$TARGET" ]; then
+	cp "$TARGET" "${TARGET_DIR}/AdGuardHome.bak-$(date +%Y%m%d%H%M%S)"
+	echo "Backup created in $TARGET_DIR"
+	find "$TARGET_DIR" -maxdepth 1 -name 'AdGuardHome.bak-*' -type f 2>/dev/null \
+		| sort -r | tail -n +2 | while read -r old; do
+			rm -f "$old"
+		done
+fi
+
 cp "$BINARY_PATH" "$TARGET"
 chmod +x "$TARGET"
 

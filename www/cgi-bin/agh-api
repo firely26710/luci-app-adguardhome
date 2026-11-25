@@ -1,6 +1,36 @@
 #!/bin/sh
 # AdGuardHome API CGI backend
 
+# --- authentication ---------------------------------------------------
+# uhttpd does not forward custom request headers to CGI scripts, so the
+# session id cannot be passed in a header.  The frontend therefore mirrors
+# the LuCI session id into a short-lived cookie (agh_sid) for this origin,
+# and the id is validated against rpcd/ubus here.
+# The LuCI cookie itself is scoped to /cgi-bin/luci and never reaches us;
+# it is still accepted as a fallback for manual requests.
+cookie_value() {
+	printf '%s' "${HTTP_COOKIE:-}" | tr ';' '\n' | sed -n "s/^[[:space:]]*$1=//p" | head -n 1
+}
+
+auth_ok() {
+	local sid out
+	sid=$(cookie_value agh_sid)
+	[ -z "$sid" ] && sid=$(cookie_value sysauth_http)
+	[ -z "$sid" ] && sid=$(cookie_value sysauth_https)
+	[ -z "$sid" ] && sid=$(cookie_value sysauth)
+	[ -n "$sid" ] || return 1
+	out=$(/bin/ubus call session get '{"ubus_rpc_session":"'"$sid"'"}' 2>/dev/null) || return 1
+	printf '%s' "$out" | grep -q '"username"'
+}
+
+if ! auth_ok; then
+	echo "Status: 403 Forbidden"
+	echo "Content-Type: application/json; charset=utf-8"
+	echo ""
+	echo '{"success":false,"error":"unauthorized"}'
+	exit 0
+fi
+
 echo "Content-Type: application/json; charset=utf-8"
 echo ""
 
@@ -27,7 +57,8 @@ get_pid() {
 }
 
 json_escape() {
-	tr -d '\r' | sed 's/\\/\\\\/g;s/"/\\"/g' | awk 1 ORS='\\n'
+	# Drop CR/control bytes (keep TAB and LF), then escape JSON specials.
+	tr -d '\000-\010\013-\037' | sed 's/\\/\\\\/g;s/"/\\"/g;s/	/\\t/g' | awk 1 ORS='\\n'
 }
 
 case "$ACTION" in
@@ -120,7 +151,7 @@ case "$ACTION" in
 		INSTALLED=$($BIN --version 2>&1 | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 		LATEST=$(wget -qO- --timeout=10 https://api.github.com/repos/AdguardTeam/AdGuardHome/releases/latest 2>/dev/null | grep -o '"tag_name": "v[^"]*"' | cut -d'"' -f4)
 		if [ -z "$LATEST" ]; then
-			echo "{\"error\":\"无法获取最新版本\"}"
+			echo '{"error":"latest_version_unavailable"}'
 		elif [ "$INSTALLED" = "$LATEST" ]; then
 			echo "{\"latest\":\"$LATEST\",\"current\":\"$INSTALLED\",\"is_latest\":true}"
 		else
@@ -128,15 +159,29 @@ case "$ACTION" in
 		fi
 		;;
 	update)
-		VER=$(echo "$QUERY_STRING" | sed 's/.*version=\([^&]*\).*/\1/' | sed 's|%2F|/|g;s|%20| |g')
+		# Parse the version parameter strictly: the old sed-based extraction
+		# returned the whole query string when "version=" was absent, which
+		# started a bogus download.  The value also ends up in a URL, so it
+		# must look like a release version.
+		VER=$(printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n 's/^version=//p' | head -n 1)
+		VER=$(printf '%s' "$VER" | sed 's|%2F|/|g;s|%20| |g')
 		if [ -z "$VER" ]; then
-			echo '{"success":false,"message":"请指定版本号"}'
+			echo '{"success":false,"error":"version_required"}'
+		elif ! printf '%s' "$VER" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+)?$'; then
+			echo '{"success":false,"error":"invalid_version"}'
 		else
-			# Start download in background, write progress to temp file
+			# Start download in background, write progress to temp file.
+			# -1 in the progress file means the update failed.
 			PROG_FILE="/tmp/agh-update-progress"
 			echo "0" > "$PROG_FILE"
-			(/usr/bin/agh-update "$VER" > /tmp/agh-update.log 2>&1; echo "100" > "$PROG_FILE") &
-			echo '{"success":true,"message":"开始下载"}'
+			(
+				if /usr/bin/agh-update "$VER" > /tmp/agh-update.log 2>&1; then
+					echo "100" > "$PROG_FILE"
+				else
+					echo "-1" > "$PROG_FILE"
+				fi
+			) &
+			echo '{"success":true}'
 		fi
 		;;
 	update_progress)

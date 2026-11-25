@@ -2,7 +2,7 @@
 
 > 记录本轮针对 `luci-app-adguardhome` 的全部改动、原因与验证结果。
 > 测试环境：OpenWrt 25.12.5 x86_64（VM），AdGuardHome v1.0.0，路由器地址 192.168.44.131。
-> 包版本：`2.0.0-r2`（Makefile 的 PKG_VERSION / PKG_RELEASE）。
+> 包版本：`2.0.0-r3`（Makefile 的 PKG_VERSION / PKG_RELEASE）。
 
 ## 1. 总览
 
@@ -298,6 +298,10 @@ apk-tools v3 的包是 ADB 容器（`ADBd`），只能由 `apk mkpkg` 生成。�
   post-install 只清理失效 pidfile（本次修复），页面和 DNS 正常；
 - 直接 `make package/.../compile` 会因树内 kernel/依赖状态不完整而拉起整条依赖链
   （openssl 等），改用 `mkpkg` 单独打包，快且可控。
+- `2.0.0-r2`：postinst/prerm 增加 `IPKG_INSTROOT` 保护——编进固件时镜像构建会带着该
+  变量执行安装脚本，旧写法会操作构建主机；现在直接退出，服务使能交给 `rootfs.mk`。
+- `2.0.0-r3`：打包改用树里的 `fakeroot` 调用 `apk mkpkg`。直接以普通用户打包时，
+  包内文件 uid/gid 是 1000，装到设备上变成 `nobody:nogroup`；现在包内是 `root:root`。
 
 无 OpenWrt 树时的备选：Alpine minirootfs chroot + 其 `apk mkpkg`（未签名，
 需 `--allow-untrusted`）。完整步骤见 `docs/build-apk.md`，产物在 `dist/`

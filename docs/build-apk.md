@@ -47,10 +47,10 @@ echo "/etc/config/adguardhome $sha" > "$R/lib/apk/packages/luci-app-adguardhome.
 # 3. 安装脚本（Makefile 的 postinst / prerm）
 mkdir -p "$W/scripts"   # post-install / pre-deinstall
 
-# 4. 打包 + 签名
-"$T/staging_dir/host/bin/apk" mkpkg \
+# 4. 打包 + 签名（fakeroot 让包内文件归属 root:root）
+"$T/staging_dir/host/bin/fakeroot" -- "$T/staging_dir/host/bin/apk" mkpkg \
   --info "name:luci-app-adguardhome" \
-  --info "version:2.0.0-r2" \
+  --info "version:2.0.0-r3" \
   --info "arch:noarch" \
   --info "description:LuCI web interface for AdGuardHome DNS filter" \
   --info "license:Apache-2.0" \
@@ -62,7 +62,7 @@ mkdir -p "$W/scripts"   # post-install / pre-deinstall
   --script "pre-deinstall:$W/scripts/pre-deinstall" \
   --files "$R" \
   --sign "$T/private-key.pem" \
-  --output "$W/luci-app-adguardhome-2.0.0-r2.apk"
+  --output "$W/luci-app-adguardhome-2.0.0-r3.apk"
 ```
 
 验证签名：
@@ -80,11 +80,11 @@ mkdir -p /tmp/keys && cp "$T/public-key.pem" /tmp/keys/
 安装：
 
 ```sh
-apk add --force-reinstall /tmp/luci-app-adguardhome-2.0.0-r2.apk
+apk add --force-reinstall /tmp/luci-app-adguardhome-2.0.0-r3.apk
 apk list --installed | grep adguardhome
 ```
 
-实测：`Replacing luci-app-adguardhome (2.0.0-r2 -> 2.0.0-r2)`，
+实测：`Replacing luci-app-adguardhome (2.0.0-r3 -> 2.0.0-r3)`，
 服务不中断（post-install 只清理失效 pidfile），页面和 DNS 正常。
 
 > 不建议直接 `make package/luci-app-adguardhome/compile`：树里 kernel/依赖的构建状态
@@ -110,7 +110,7 @@ chroot /tmp/alpine /sbin/apk --version   # apk-tools 3.0.9
 
 ```sh
 chroot /tmp/alpine /sbin/apk mkpkg \
-  --info "name:luci-app-adguardhome" --info "version:2.0.0-r2" \
+  --info "name:luci-app-adguardhome" --info "version:2.0.0-r3" \
   --info "arch:noarch" --info "description:..." --info "license:Apache-2.0" \
   --info "depends:luci-base nftables curl wget rpcd" \
   --script "post-install:/work/scripts/post-install" \

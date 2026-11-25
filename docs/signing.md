@@ -41,7 +41,7 @@ ERROR: UNTRUSTED signature
 ## 方案一：不签名（最省事）
 
 ```sh
-apk add --allow-untrusted ./luci-app-adguardhome-2.0.0-r2.apk
+apk add --allow-untrusted ./luci-app-adguardhome-2.0.0-r3.apk
 ```
 
 或者先跑一次解锁脚本（全局允许未信任包），之后就能直接 `apk add`：
@@ -81,7 +81,7 @@ openssl ec -in private-key.pem -pubout -out public-key.pem
 ```sh
 apk mkpkg \
   --info "name:luci-app-adguardhome" \
-  --info "version:2.0.0-r2" \
+  --info "version:2.0.0-r3" \
   --info "arch:noarch" \
   ... \
   --files ./root \

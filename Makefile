@@ -14,7 +14,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-adguardhome
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=ADH Team
 PKG_LICENSE:=Apache-2.0
@@ -106,6 +106,12 @@ endef
 
 define Package/luci-app-adguardhome/postinst
 #!/bin/sh
+# Image builds run postinst/prerm with IPKG_INSTROOT set; those steps must not
+# touch the build host (rootfs.mk enables services itself).  Keep the runtime
+# package install path unchanged.
+if [ -n "$IPKG_INSTROOT" ]; then
+	exit 0
+fi
 set -e
 
 mkdir -p /var/log
@@ -150,6 +156,12 @@ endef
 
 define Package/luci-app-adguardhome/prerm
 #!/bin/sh
+# Image builds run postinst/prerm with IPKG_INSTROOT set; those steps must not
+# touch the build host (rootfs.mk enables services itself).  Keep the runtime
+# package install path unchanged.
+if [ -n "$IPKG_INSTROOT" ]; then
+	exit 0
+fi
 set -e
 
 if [ -x /etc/init.d/AdGuardHome ]; then

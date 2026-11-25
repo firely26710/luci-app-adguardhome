@@ -2,7 +2,7 @@
 
 > 记录本轮针对 `luci-app-adguardhome` 的全部改动、原因与验证结果。
 > 测试环境：OpenWrt 25.12.5 x86_64（VM），AdGuardHome v1.0.0，路由器地址 192.168.44.131。
-> 包版本：`2.0.0-r1`（Makefile 的 PKG_VERSION / PKG_RELEASE）。
+> 包版本：`2.0.0-r2`（Makefile 的 PKG_VERSION / PKG_RELEASE）。
 
 ## 1. 总览
 

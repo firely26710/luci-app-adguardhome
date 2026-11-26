@@ -14,7 +14,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-adguardhome
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 
 PKG_MAINTAINER:=ADH Team
 PKG_LICENSE:=Apache-2.0
@@ -130,27 +130,23 @@ fi
 
 if [ -f /etc/config/adguardhome ]; then
 	echo "Existing config found, preserving..."
-else
-	uci -q set adguardhome.main.enabled=1 || true
-	uci commit adguardhome || true
-	echo "First install: service enabled by default"
 fi
 
 rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null || true
 
-# Enable auto-start on boot (creates /etc/rc.d/S95AdGuardHome symlink)
-/etc/init.d/AdGuardHome enable 2>/dev/null || true
-echo "Auto-start on boot enabled"
+# The core binary and the service are deliberately not shipped/enabled by
+# default: install the core first, then enable AdGuardHome in LuCI.
+if [ "$(uci -q get adguardhome.main.enabled)" != "1" ]; then
+	/etc/init.d/AdGuardHome disable 2>/dev/null || true
+fi
 
 echo ""
-echo "AdGuardHome LuCI app installed!"
+echo "AdGuardHome LuCI app installed (service disabled)."
 echo "================================="
-echo "Download the binary:"
-echo "  /usr/bin/agh-update <version>"
-echo "Or copy manually to:"
-echo "  /usr/lib/AdGuardHome/AdGuardHome"
-echo "Configure via LuCI:"
-echo "  Services -> AdGuardHome"
+echo "1) Install the core binary:"
+echo "   /usr/bin/agh-update <version>"
+echo "2) Enable AdGuardHome in LuCI:"
+echo "   Services -> AdGuardHome"
 echo "================================="
 echo ""
 

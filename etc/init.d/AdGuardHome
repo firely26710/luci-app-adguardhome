@@ -264,9 +264,17 @@ start_service() {
 
 	check_binary || return 1
 
+	local config_path=$(adh_config_path)
+
+	# Always allow the first-run setup wizard to start (no AdGuardHome.yaml
+	# yet), even when the service is not enabled for boot.  Once a config
+	# exists, enabled=0 means "do not start".
 	if ! adh_enabled; then
-		logger -t AdGuardHome "Service disabled in config, not starting"
-		return 0
+		if [ -f "$config_path" ]; then
+			logger -t AdGuardHome "Service disabled in config, not starting"
+			return 0
+		fi
+		logger -t AdGuardHome "First run: starting setup wizard"
 	fi
 
 	local port=$(adh_port)
@@ -274,7 +282,6 @@ start_service() {
 	local mode=$(adh_dns_mode)
 	local bin=$(adh_binary_path)
 	local work_dir=$(adh_work_dir)
-	local config_path=$(adh_config_path)
 
 	logger -t AdGuardHome "Starting AdGuardHome (web:$web_port dns:$port mode:$mode)"
 

@@ -248,12 +248,14 @@ chmod +x "$TARGET"
 echo "95" > "$PROG_FILE" 2>/dev/null
 echo "Binary updated successfully"
 
-# Start service if it was previously enabled
-if [ -f /etc/config/adguardhome ]; then
-	if uci -q get adguardhome.main.enabled | grep -q "^1$"; then
-		echo "Re-starting AdGuardHome service..."
-		/etc/init.d/AdGuardHome start
-	fi
+# First run (no AdGuardHome.yaml yet): start the official setup wizard on
+# port 3000.  Otherwise restart only when the service is enabled for boot.
+if [ ! -f /etc/AdGuardHome/AdGuardHome.yaml ]; then
+	echo "First run: starting AdGuardHome setup wizard on port 3000..."
+	/etc/init.d/AdGuardHome start
+elif [ -f /etc/config/adguardhome ] && uci -q get adguardhome.main.enabled | grep -q "^1$"; then
+	echo "Re-starting AdGuardHome service..."
+	/etc/init.d/AdGuardHome start
 fi
 
 # Cleanup
